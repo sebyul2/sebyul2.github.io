@@ -1811,9 +1811,9 @@ function genEnemy(stage){
   const isFinal = stage === 100;
 
   // levelScale 동일 곡선에 비율 적용.
-  // 1~10층: 평탄 (1.0), 11층부터 지수 가속(1.012^층). 후반으로 갈수록 더 가파름.
+  // 1~10층: 평탄 (1.0), 11층부터 지수 가속(1.020^층). 100층에서 약 5.94배 (이전 곡선의 2배 강도).
   const ls = levelScale(stage);
-  const baseMult = stage <= 10 ? 1.0 : Math.pow(1.012, stage - 10);
+  const baseMult = stage <= 10 ? 1.0 : Math.pow(1.020, stage - 10);
   const eScale = ls * baseMult;
   const baseHp  = Math.round(40  * eScale);
   const baseAtk = Math.round(3.5 * eScale);
