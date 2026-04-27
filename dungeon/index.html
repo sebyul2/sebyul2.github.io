@@ -231,12 +231,18 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   backdrop-filter:blur(2px);
   display:none; align-items:center; justify-content:center; z-index:100;
   padding:20px;
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 .modal-bg.show{display:flex}
 .modal{
   background:var(--panel); border:2px solid var(--accent);
   padding:20px; max-width:880px; width:100%; max-height:90vh; overflow-y:auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
+body.modal-open{overflow:hidden; position:fixed; width:100%}
 .modal h2{
   text-align:center; color:var(--accent);
   letter-spacing:4px; margin-bottom:6px;
@@ -2588,11 +2594,14 @@ function showModal(html){
   $('modal').innerHTML = html;
   $('modal-bg').classList.remove('peek'); // peek 잔재 제거
   $('modal-bg').classList.add('show');
+  document.body.classList.add('modal-open');
+  $('modal').scrollTop = 0;
   const pr = $('peek-restore'); if (pr) pr.style.display = 'none';
 }
 function hideModal(){
   $('modal-bg').classList.remove('show');
   $('modal-bg').classList.remove('peek');
+  document.body.classList.remove('modal-open');
   const pr = $('peek-restore'); if (pr) pr.style.display = 'none';
   G._invOpen = false;
 }
