@@ -248,6 +248,20 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   background:linear-gradient(180deg,#2a1a3a,#180828);
   border-color:#7c5aa8;
 }
+.choice.type-boss{
+  border-color:#ffae5c !important;
+  box-shadow:0 0 18px rgba(255,174,92,.35), inset 0 0 0 1px rgba(255,200,120,.3);
+}
+.choice.type-boss .type-banner{
+  color:#ffe2b6;
+  background:linear-gradient(180deg,#5a3a1a,#2a1808);
+  border-color:#ffae5c;
+  text-shadow:0 0 8px rgba(255,200,120,.6);
+}
+.choice.type-boss .slot-tag{color:#ffd28a}
+.choice.type-boss .compare{background:rgba(60,40,15,.5)}
+.choice.type-boss .compare .head{color:#ffd28a}
+.choice.type-boss .compare .accumulate{color:#ffe2b6}
 .choice .bonus-heal{
   margin-top:10px; padding:10px 8px;
   background:linear-gradient(90deg,rgba(94,219,122,.30),rgba(94,219,122,.10),rgba(94,219,122,.30));
@@ -746,6 +760,70 @@ const ENEMY_TIERS = [
   { normals: [66, 75, 85, 89, 93, 95, 96, 97], boss: 99 }
 ];
 
+// === 보스 전용 아이템 풀 (보스 처치 시 등장) ===
+const BOSS_ITEMS = [
+  { id:'soulreap',     name:'영혼 채집자',     desc:'적 처치 시 영구 공격력 +2',
+    mods:[{id:'on_kill_atk_perm',value:2}] },
+  { id:'bossbane',     name:'보스 사냥꾼',     desc:'보스에게 +60% 데미지',
+    mods:[{id:'bossbane',value:60}] },
+  { id:'iron_will',    name:'강철 의지',       desc:'받는 모든 데미지 -3 (고정)',
+    mods:[{id:'flat_dr',value:3}] },
+  { id:'desperate',    name:'절명의 일격',     desc:'HP 5% 이하일 때 모든 데미지 ×5',
+    mods:[{id:'desperate_mult',value:5}] },
+  { id:'crisis_inst',  name:'위기 본능',       desc:'HP 50% 이하 시 항상 치명타',
+    mods:[{id:'low_hp_crit',value:50}] },
+  { id:'crit_chain',   name:'연쇄 치명타',     desc:'치명타 발동 시 다음 공격도 100% 치명타',
+    mods:[{id:'crit_chain',value:1}] },
+  { id:'shadow_ctr',   name:'그림자 반격',     desc:'회피 성공 시 적에게 공격력 80% 반격',
+    mods:[{id:'evade_counter',value:80}] },
+  { id:'fortune_dice', name:'운명의 주사위',   desc:'회피 +25%, 추가타 +25%',
+    mods:[{id:'evade_flat',value:25},{id:'doublestrike',value:25}] },
+  { id:'eternal_rage', name:'영원의 분노',     desc:'전투 중 매 턴 공격력 +3 (다음 전투 초기화)',
+    mods:[{id:'rage_per_turn',value:3}] },
+  { id:'vamp_god',     name:'흡혈의 화신',     desc:'흡혈 +50%, 치명타 흡정 +30%',
+    mods:[{id:'lifesteal',value:50},{id:'crit_lifesteal',value:30}] },
+  { id:'starving',     name:'굶주린 칼날',     desc:'HP 50% 이하 시 공격력 +120%',
+    mods:[{id:'low_hp_atk',value:120}] },
+  { id:'holy_shield',  name:'신성한 보호막',   desc:'전투 시작 첫 피격 1회 무효',
+    mods:[{id:'first_hit_block',value:1}] },
+  { id:'fire_reflect', name:'화염의 반사',     desc:'가시 +80%',
+    mods:[{id:'thorns',value:80}] },
+  { id:'time_freeze',  name:'시간의 멈춤',     desc:'매 5턴 적 행동 무효',
+    mods:[{id:'cycle5_freeze',value:1}] },
+  { id:'soul_eater',   name:'영혼 흡수',       desc:'적 처치 시 최대 HP +10 영구',
+    mods:[{id:'on_kill_max_hp',value:10}] },
+  { id:'gods_hand',    name:'신의 손',         desc:'매 3턴 데미지 +200%, 치명타 연쇄 +1',
+    mods:[{id:'cycle3_dmg_pct',value:200},{id:'crit_chain',value:1}] },
+  { id:'abs_evade',    name:'절대 회피',       desc:'회피율 +35%',
+    mods:[{id:'evade_flat',value:35}] },
+  { id:'massacre',     name:'살육 광란',       desc:'추가타 +50%, 흡혈 +20%',
+    mods:[{id:'doublestrike',value:50},{id:'lifesteal',value:20}] },
+  { id:'invuln_pulse', name:'무적 충격',       desc:'매 7턴마다 적 공격 1회 완전 무효',
+    mods:[{id:'cycle7_invuln',value:1}] },
+  { id:'exp_blade',    name:'폭발의 검',       desc:'매 공격마다 적 최대 HP의 4% 추가 진실 데미지',
+    mods:[{id:'true_dmg_per_hit_pct',value:4}] },
+  { id:'titan',        name:'거인의 일격',     desc:'전투 첫 턴 데미지 +300%',
+    mods:[{id:'firstblood',value:300}] },
+  { id:'death_touch',  name:'죽음의 손길',     desc:'적 HP 25% 이하면 처형',
+    mods:[{id:'execute',value:25}] },
+  { id:'storm_thirst', name:'폭풍의 갈증',     desc:'추가타 +40%, 흡혈 +30%',
+    mods:[{id:'doublestrike',value:40},{id:'lifesteal',value:30}] },
+  { id:'berserk_arm',  name:'광폭의 갑옷',     desc:'HP 30% 이하 시 받는 데미지 -50%',
+    mods:[{id:'low_hp_dr',value:50}] },
+  { id:'div_punish',   name:'천벌',            desc:'매 턴 적 최대 HP의 12% 진실 데미지',
+    mods:[{id:'true_dmg_pct',value:12}] },
+  { id:'soul_burst',   name:'영혼 폭발',       desc:'적 처치 시 다음 적 HP 25% 즉시 깎음',
+    mods:[{id:'on_kill_next_hp_pct',value:25}] },
+  { id:'all_stat',     name:'고대 룬의 가호',  desc:'공격력/체력/방어력 +30%, 회피 +15%',
+    mods:[{id:'atk_pct',value:30},{id:'hp_pct',value:30},{id:'def_pct',value:30},{id:'evade_flat',value:15}] },
+  { id:'phx_fury',     name:'분노의 불사조',   desc:'부활 1회 (HP 80%), 부활 시 적 HP 50% 깎음',
+    mods:[{id:'revive_count',value:1},{id:'revive_pct',value:80},{id:'revive_dmg_pct',value:50}] },
+  { id:'overkill',     name:'과잉살상',        desc:'매 공격마다 적 최대 HP의 6% 추가 + 처형 +5%',
+    mods:[{id:'true_dmg_per_hit_pct',value:6},{id:'execute',value:5}] },
+  { id:'eternal_void', name:'영원의 공허',     desc:'데미지 -40%, 흡혈 +25%, 매 5턴 freeze',
+    mods:[{id:'dmg_reduction',value:40},{id:'lifesteal',value:25},{id:'cycle5_freeze',value:1}] }
+];
+
 // === 이전 ASCII 데이터는 더 이상 사용하지 않음 (제거) ===
 const _ENEMY_TIERS_OLD_REMOVED = [
   { normals: [], boss: null },
@@ -1198,6 +1276,22 @@ function genPerk(rarity, stage){
 
 function describeMod(m){
   switch(m.id){
+    case 'flat_dr': return `피해감소 -${m.value} (고정)`;
+    case 'on_kill_atk_perm': return `처치 시 atk +${m.value} 영구`;
+    case 'on_kill_max_hp': return `처치 시 max HP +${m.value} 영구`;
+    case 'on_kill_next_hp_pct': return `처치 시 다음 적 HP -${m.value}%`;
+    case 'bossbane': return `보스 데미지 +${m.value}%`;
+    case 'crit_chain': return `치명타 연쇄`;
+    case 'evade_counter': return `회피 반격 ${m.value}%`;
+    case 'low_hp_crit': return `HP↓${m.value}% 시 항상 치명타`;
+    case 'low_hp_dr': return `HP↓30% 시 피해감소 ${m.value}%`;
+    case 'true_dmg_per_hit_pct': return `매 공격 +${m.value}% 진실뎀`;
+    case 'rage_per_turn': return `매 턴 atk +${m.value}`;
+    case 'first_hit_block': return `첫 피격 무효`;
+    case 'cycle5_freeze': return `매 5턴 freeze`;
+    case 'cycle7_invuln': return `매 7턴 무적 1회`;
+    case 'desperate_mult': return `HP 5% 이하 데미지 ×${m.value}`;
+    case 'revive_dmg_pct': return `부활 시 적 HP -${m.value}%`;
     case 'atk_pct': return `공격력 +${m.value}%`;
     case 'hp_pct': return `체력 +${m.value}%`;
     case 'def_pct': return `방어력 +${m.value}%`;
@@ -1246,6 +1340,9 @@ function aggregateMods(player){
   for (const m of allSources){
     sum[m.id] = (sum[m.id] || 0) + m.value;
   }
+  // 영구 보너스 (on_kill_atk_perm 누적치)
+  if (player.bonusAtk) sum.atk_flat = (sum.atk_flat || 0) + player.bonusAtk;
+  if (player.bonusMaxHp) sum.hp_flat = (sum.hp_flat || 0) + player.bonusMaxHp;
   return sum;
 }
 
@@ -1298,7 +1395,9 @@ function newGame(){
     perks: [],
     hp: 100,
     revives_used: 0,
-    cycleCounters: { thunder:0, sacred:0, freeze:0 }
+    bonusAtk: 0, bonusMaxHp: 0,
+    nextEnemyHpReduction: 0,
+    cycleCounters: { thunder:0, sacred:0, freeze:0, c5:0, c7:0 }
   };
   return {
     stage: 1,
@@ -1338,11 +1437,21 @@ function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
 
 function startBattle(){
   G.battle.enemy = genEnemy(G.stage);
+  // 보스템 효과: 다음 적 HP 깎기
+  if (G.player.nextEnemyHpReduction){
+    const cut = Math.floor(G.battle.enemy.maxHp * G.player.nextEnemyHpReduction / 100);
+    G.battle.enemy.hp = Math.max(1, G.battle.enemy.maxHp - cut);
+    log(`영혼 폭발! 적 시작 HP -${cut}`, 'effect');
+    G.player.nextEnemyHpReduction = 0;
+  }
   G.battle.active = true;
   G.battle.turn = 1;
   G.battle.firstStrike = true;
   G.battle.started = false; // 사용자가 [공격] 누르기 전까지 대기
-  G.player.cycleCounters = { thunder:0, sacred:0, freeze:0 };
+  G.battle.rage = 0;          // eternal_rage 누적
+  G.battle.firstHitBlocked = false;  // holy_shield 사용 여부
+  G.battle.nextCritGuaranteed = false; // crit_chain 상태
+  G.player.cycleCounters = { thunder:0, sacred:0, freeze:0, c5:0, c7:0 };
   log(`-- 스테이지 ${G.stage} -- ${G.battle.enemy.name} 등장! [공격]을 눌러 시작.`, 'system');
   if (G.battle.enemy.isBoss) log('※ 보스 ※', 'system');
   saveGame();
@@ -1381,11 +1490,13 @@ function clearSkipState(){
 
 function calcOutgoingDamage(attacker, defender, opts={}){
   // 공식: dmg = max(1, atk - def). 단순 차감으로 def 1당 dmg -1 직관 유지.
-  const isCrit = opts.alwaysCrit || (Math.random() * 100 < attacker.crit);
+  const isCrit = opts.alwaysCrit || opts.guaranteedCrit || (Math.random() * 100 < attacker.crit);
   let dmg = attacker.atk;
   if (isCrit) dmg = dmg * (attacker.critdmg / 100);
   if (opts.dmg_mult) dmg *= opts.dmg_mult;
   if (opts.firstblood_bonus) dmg *= (1 + opts.firstblood_bonus / 100);
+  if (opts.bossbane_pct && opts.target_isBoss) dmg *= (1 + opts.bossbane_pct / 100);
+  if (opts.desperate_mult) dmg *= opts.desperate_mult;
 
   let effDef = defender.def;
   if (opts.pierce_pct) effDef = effDef * (1 - opts.pierce_pct / 100);
@@ -1451,14 +1562,27 @@ function attack(){
     if (e.hp <= 0) return endBattle(true);
   }
 
-  // 1) 플레이어 공격
-  const attackerStats = { atk: ps.atk, crit: ps.crit, critdmg: ps.critdmg };
+  // 1) 플레이어 공격 (eternal_rage: 매 턴 atk 누적)
+  if (mods.rage_per_turn){
+    G.battle.rage = (G.battle.rage || 0) + mods.rage_per_turn;
+  }
+  const lowHpCrit = mods.low_hp_crit && G.player.hp <= ps.hp * (mods.low_hp_crit / 100);
+  const desperate = mods.desperate_mult && G.player.hp <= ps.hp * 0.05 ? mods.desperate_mult : 0;
+  const attackerStats = {
+    atk: ps.atk + (G.battle.rage || 0),
+    crit: ps.crit, critdmg: ps.critdmg
+  };
   const opts = {
-    alwaysCrit: !!mods.always_crit,
+    alwaysCrit: !!mods.always_crit || !!lowHpCrit,
+    guaranteedCrit: !!G.battle.nextCritGuaranteed,
     pierce_pct: mods.pierce || 0,
     armor_broken: e.armorBroken || 0,
-    firstblood_bonus: G.battle.firstStrike ? (mods.firstblood || 0) : 0
+    firstblood_bonus: G.battle.firstStrike ? (mods.firstblood || 0) : 0,
+    bossbane_pct: mods.bossbane || 0,
+    target_isBoss: !!e.isBoss,
+    desperate_mult: desperate
   };
+  G.battle.nextCritGuaranteed = false;
   // 천둥의 분노 (3턴 사이클)
   G.player.cycleCounters.thunder = (G.player.cycleCounters.thunder || 0) + 1;
   if (mods.cycle3_dmg_pct && G.player.cycleCounters.thunder >= 3){
@@ -1478,6 +1602,17 @@ function attack(){
   log(`${G.player.name||'당신'}의 공격! ${dmg} 데미지${isCrit?' (치명타!)':''}`, isCrit?'crit':'');
   showDamage('enemy', dmg, isCrit ? 'crit' : '');
 
+  // 치명타 연쇄
+  if (isCrit && mods.crit_chain){
+    G.battle.nextCritGuaranteed = true;
+  }
+  // 매 공격 추가 진실 데미지
+  if (mods.true_dmg_per_hit_pct){
+    const td = Math.max(1, Math.floor(e.maxHp * mods.true_dmg_per_hit_pct / 100));
+    e.hp -= td;
+    log(`폭발! ${td} 진실 데미지`, 'effect');
+    showDamage('enemy', td, '');
+  }
   // 갑옷 깎기 (cleave)
   if (mods.cleave){
     e.armorBroken = (e.armorBroken || 0) + mods.cleave;
@@ -1543,9 +1678,24 @@ function attack(){
   }
 
   if (enemyActed){
+    // 무적 펄스 (cycle7_invuln) — 매 7턴 1회
+    if (mods.cycle7_invuln && G.battle.turn % 7 === 0){
+      log('무적 충격! 적 공격 무효', 'effect');
+      enemyActed = false;
+    }
+  }
+  if (enemyActed){
     // 회피 (player evade 합산값 사용)
     if (ps.evade && Math.random() * 100 < ps.evade){
       log(`회피! (${ps.evade}%)`, 'miss');
+      // 회피 반격
+      if (mods.evade_counter){
+        const counter = Math.max(1, Math.floor(ps.atk * mods.evade_counter / 100));
+        e.hp -= counter;
+        log(`회피 반격! ${counter}`, 'effect');
+        showDamage('enemy', counter, '');
+        if (e.hp <= 0) return endBattle(true);
+      }
     } else {
       const ed = calcOutgoingDamage(
         { atk: e.atk, crit: e.crit, critdmg: e.critdmg },
@@ -1553,8 +1703,22 @@ function attack(){
         {}
       );
       let edmg = ed.dmg;
-      if (mods.dmg_reduction){
+      // 첫 피격 무효 (holy_shield)
+      if (mods.first_hit_block && !G.battle.firstHitBlocked){
+        G.battle.firstHitBlocked = true;
+        log('신성한 보호막! 첫 피격 무효', 'effect');
+        edmg = 0;
+      }
+      // HP 30% 이하 시 데미지 감소 (low_hp_dr)
+      if (edmg > 0 && mods.low_hp_dr && G.player.hp <= ps.hp * 0.3){
+        edmg = Math.max(1, Math.floor(edmg * (1 - mods.low_hp_dr / 100)));
+      }
+      if (edmg > 0 && mods.dmg_reduction){
         edmg = Math.max(1, Math.floor(edmg * (1 - mods.dmg_reduction / 100)));
+      }
+      // flat 감소
+      if (edmg > 0 && mods.flat_dr){
+        edmg = Math.max(1, edmg - mods.flat_dr);
       }
 
       // 가시 반사
@@ -1572,6 +1736,13 @@ function attack(){
         G.player.revives_used += 1;
         const remain = (mods.revive_count - G.player.revives_used);
         log(`>> 불사조의 가호! ${reviveHp} HP로 부활 (${remain}회 남음)`, 'crit');
+        // 부활 시 적 HP 깎기 (boss item: phx_fury)
+        if (mods.revive_dmg_pct){
+          const cut = Math.max(1, Math.floor(e.maxHp * mods.revive_dmg_pct / 100));
+          e.hp -= cut;
+          log(`부활 충격! 적 HP -${cut}`, 'crit');
+          if (e.hp <= 0) return endBattle(true);
+        }
       } else {
         G.player.hp = Math.max(0, G.player.hp - edmg);
         log(`적의 공격! ${edmg} 데미지${ed.isCrit?' (치명타!)':''}`, ed.isCrit?'crit':'');
@@ -1595,6 +1766,11 @@ function attack(){
     G.player.cycleCounters.freeze = 1;
     log('시간 정지 충전 완료! 다음 적 공격 무효', 'effect');
   }
+  // 5턴 freeze (보스템)
+  if (mods.cycle5_freeze && G.battle.turn % 5 === 0){
+    G.player.cycleCounters.freeze = 1;
+    log('시간의 멈춤! 다음 적 공격 무효', 'effect');
+  }
 
   G.battle.turn += 1;
   saveGame();
@@ -1610,6 +1786,20 @@ function endBattle(playerWon){
   G.battle.active = false;
   clearSkipState();
   if (playerWon){
+    // 보스템 처치 시 효과
+    const mods = aggregateMods(G.player);
+    if (mods.on_kill_atk_perm){
+      G.player.bonusAtk = (G.player.bonusAtk || 0) + mods.on_kill_atk_perm;
+      log(`영혼 흡수! 영구 공격력 +${mods.on_kill_atk_perm} (총 +${G.player.bonusAtk})`, 'reward');
+    }
+    if (mods.on_kill_max_hp){
+      G.player.bonusMaxHp = (G.player.bonusMaxHp || 0) + mods.on_kill_max_hp;
+      G.player.hp += mods.on_kill_max_hp;
+      log(`영혼 흡수! 최대 HP +${mods.on_kill_max_hp}`, 'heal');
+    }
+    if (mods.on_kill_next_hp_pct){
+      G.player.nextEnemyHpReduction = mods.on_kill_next_hp_pct;
+    }
     log(`>> ${G.battle.enemy.name} 처치!`, 'reward');
     if (G.stage >= 100){
       G.won = true;
@@ -1646,11 +1836,39 @@ function endBattle(playerWon){
 =========================================================== */
 
 function generateRewards(stage){
+  // 보스 처치 시: BOSS_ITEMS 풀에서 3개 무작위 (중복 없이)
+  if (G.battle.enemy && G.battle.enemy.isBoss){
+    const pool = [...BOSS_ITEMS];
+    const choices = [];
+    for (let i = 0; i < 3 && pool.length; i++){
+      const idx = Math.floor(Math.random() * pool.length);
+      const tpl = pool.splice(idx, 1)[0];
+      choices.push({
+        type: 'boss',
+        rarity: 'boss',
+        id: tpl.id,
+        name: tpl.name,
+        desc: tpl.desc,
+        mods: tpl.mods.map(m => ({...m}))
+      });
+    }
+    // 보스도 30% 보너스 힐 가능
+    if (Math.random() < 0.30){
+      const ps = computeStats(G.player);
+      const pct = 0.30 + Math.random() * 0.30;
+      const healAmt = Math.max(1, Math.floor(ps.hp * pct));
+      const target = choices[Math.floor(Math.random() * choices.length)];
+      target.bonusHeal = healAmt;
+      target.bonusHealPct = Math.floor(pct * 100);
+    }
+    return choices;
+  }
+  // 일반 보상
   const weights = rarityWeights(stage);
   const choices = [];
   for (let i = 0; i < 3; i++){
     const rarity = weightedChoice(weights).id;
-    const isItem = Math.random() < (G.battle.enemy.isBoss ? 0.45 : 0.55);
+    const isItem = Math.random() < 0.55;
     if (isItem){
       const slot = choice(SLOTS).id;
       choices.push(genItem(slot, rarity, stage));
@@ -1658,10 +1876,9 @@ function generateRewards(stage){
       choices.push(genPerk(rarity, stage));
     }
   }
-  // 30% 확률: 3개 카드 중 1개에 보너스 회복 부여 (덤)
   if (Math.random() < 0.30){
     const ps = computeStats(G.player);
-    const pct = 0.30 + Math.random() * 0.30; // 30~60%
+    const pct = 0.30 + Math.random() * 0.30;
     const healAmt = Math.max(1, Math.floor(ps.hp * pct));
     const target = choices[Math.floor(Math.random() * choices.length)];
     target.bonusHeal = healAmt;
@@ -1679,6 +1896,10 @@ function chooseReward(idx){
     G.player.equipment[r.slot] = r;
     log(`장착: [${RARITY_BY_ID[r.rarity].name}] ${r.name}`, 'reward');
     if (old) log(`기존 [${RARITY_BY_ID[old.rarity].name}] ${old.name} 폐기`, '');
+  } else if (r.type === 'boss'){
+    // 보스템 — perks와 같은 방식으로 누적, 단 별도 표시
+    G.player.perks.push({ ...r, rarity: 'boss' });
+    log(`★ 보스 드랍: ${r.name}`, 'reward');
   } else {
     G.player.perks.push(r);
     log(`특수효과 획득: [${RARITY_BY_ID[r.rarity].name}] ${r.name}`, 'reward');
