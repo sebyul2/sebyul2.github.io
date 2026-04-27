@@ -775,66 +775,77 @@ const Bgm = (() => {
     ['_', 1.0], ['E4', 1.0], ['A4', 2.0],                      // 마디13
     ['G4', 1.0], ['A4', 3.0]                                   // 마디14 final
   ];
-  // 베이스 — 마디당 1~2개 (단순/낮음/긴 sustain)
+  // 베이스 — 한 옥타브 올림 + plucked 스타일 (저주파 웅웅 제거)
   const BASS = [
-    ['A2', 4.0],                       // 마디1 Am
-    ['F2', 4.0],                       // 마디2 F
-    ['G2', 4.0],                       // 마디3 G
-    ['A2', 4.0],                       // 마디4 Am
-    ['F2', 2.0], ['G2', 2.0],          // 마디5
-    ['C3', 2.0], ['G2', 2.0],          // 마디6
-    ['A2', 2.0], ['E2', 2.0],          // 마디7
-    ['F2', 2.0], ['C3', 2.0],          // 마디8
-    ['C3', 2.0], ['G2', 2.0],          // 마디9
-    ['F2', 2.0], ['E2', 2.0],          // 마디10
-    ['F2', 2.0], ['G2', 2.0],          // 마디11
-    ['A2', 4.0],                       // 마디12
-    ['A2', 4.0],                       // 마디13
-    ['A2', 4.0]                        // 마디14
+    ['A3', 4.0],                       // 마디1 Am
+    ['F3', 4.0],                       // 마디2 F
+    ['G3', 4.0],                       // 마디3 G
+    ['A3', 4.0],                       // 마디4 Am
+    ['F3', 2.0], ['G3', 2.0],          // 마디5
+    ['C4', 2.0], ['G3', 2.0],          // 마디6
+    ['A3', 2.0], ['E3', 2.0],          // 마디7
+    ['F3', 2.0], ['C4', 2.0],          // 마디8
+    ['C4', 2.0], ['G3', 2.0],          // 마디9
+    ['F3', 2.0], ['E3', 2.0],          // 마디10
+    ['F3', 2.0], ['G3', 2.0],          // 마디11
+    ['A3', 4.0],                       // 마디12
+    ['A3', 4.0],                       // 마디13
+    ['A3', 4.0]                        // 마디14
   ];
   function getCtx(){
     if (!ctx){
       try {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
         master = ctx.createGain();
-        master.gain.value = muted ? 0 : 0.55;
-        // 거친 고주파 차단 — 따뜻한 톤
+        master.gain.value = muted ? 0 : 0.40;
+        // 고주파 차단 — 은은한 따뜻함 (1100Hz 컷)
         const lp = ctx.createBiquadFilter();
         lp.type = 'lowpass';
-        lp.frequency.value = 1800;
+        lp.frequency.value = 1100;
         lp.Q.value = 0.7;
         master.connect(lp).connect(ctx.destination);
       } catch(e) { return null; }
     }
     return ctx;
   }
-  function tick(t, freq, type, vol, dur){
+  function tick(t, freq, type, vol, dur, mode='sustain'){
     if (!ctx || !master) return;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t);
-    // 더 부드러운 ADSR — 천천히 attack, 천천히 release (잔향감)
-    const atk = Math.min(0.04, dur * 0.15);
-    const rel = Math.min(0.18, dur * 0.40);
-    const sustainEnd = t + dur - rel;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + atk);
-    g.gain.linearRampToValueAtTime(vol * 0.7, sustainEnd);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
-    o.connect(g).connect(master);
-    o.start(t);
-    o.stop(t + dur + 0.10);
+    if (mode === 'pluck'){
+      // 짧은 발현 — 마림바/하프 같은 자연 감쇠
+      const peak = vol;
+      g.gain.linearRampToValueAtTime(peak, t + 0.006);
+      const decay = Math.min(0.55, dur * 0.55);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      o.connect(g).connect(master);
+      o.start(t);
+      o.stop(t + decay + 0.05);
+    } else {
+      // 부드러운 ADSR (sustain)
+      const atk = Math.min(0.04, dur * 0.15);
+      const rel = Math.min(0.18, dur * 0.40);
+      const sustainEnd = t + dur - rel;
+      g.gain.linearRampToValueAtTime(vol, t + atk);
+      g.gain.linearRampToValueAtTime(vol * 0.7, sustainEnd);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+      o.connect(g).connect(master);
+      o.start(t);
+      o.stop(t + dur + 0.10);
+    }
   }
   function totalDuration(track){
     let s = 0; for (const [,d] of track) s += d * QUARTER; return s;
   }
-  function playTrack(track, t0, type, vol){
+  function playTrack(track, t0, type, vol, mode='sustain'){
     let t = t0;
     for (const [note, dq] of track){
       const dur = dq * QUARTER;
       const freq = NOTE[note];
-      if (freq > 0) tick(t, freq, type, vol, dur);
+      if (freq > 0) tick(t, freq, type, vol, dur, mode);
       t += dur;
     }
     return t;
@@ -843,8 +854,8 @@ const Bgm = (() => {
     if (!playing) return;
     const c = getCtx(); if (!c) return;
     const start = Math.max(c.currentTime + 0.05, nextLoopAt);
-    playTrack(MELODY, start, 'triangle', 0.22);
-    playTrack(BASS,   start, 'sine',     0.14);
+    playTrack(MELODY, start, 'triangle', 0.18);
+    playTrack(BASS,   start, 'sine',     0.10, 'pluck');
     const len = totalDuration(MELODY);
     nextLoopAt = start + len;
     loopHandle = setTimeout(scheduleLoop, (len - 0.25) * 1000);
@@ -857,7 +868,7 @@ const Bgm = (() => {
       // master gain 즉시 정상 음량으로
       if (master){
         master.gain.cancelScheduledValues(c.currentTime);
-        master.gain.setValueAtTime(muted ? 0 : 0.55, c.currentTime);
+        master.gain.setValueAtTime(muted ? 0 : 0.40, c.currentTime);
       }
       playing = true;
       nextLoopAt = 0;
