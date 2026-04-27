@@ -533,6 +533,9 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   text-align:center; color:var(--dim); font-size:11px;
   padding:6px; letter-spacing:1px;
 }
+
+/* 모바일 약식 인벤 바 — 데스크탑에선 숨김, 모바일에서만 표시 */
+.mobile-inv-bar{display:none}
 @media(max-width:680px){
   body{font-size:12px}
   .app{padding:4px; max-width:100%}
@@ -557,6 +560,35 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   .status-icons{font-size:9px; top:3px; right:3px}
   .status-icons .badge{padding:0 3px; font-size:9px}
   .vs{font-size:16px}
+
+  .mobile-inv-bar{
+    display:flex; gap:4px; align-items:stretch;
+    border:2px solid var(--border); background:var(--panel);
+    padding:3px 4px; margin-bottom:4px;
+    cursor:pointer;
+  }
+  .mobile-inv-bar:active{background:#1a1a1a}
+  .mobile-inv-bar .slots{display:flex; gap:3px; flex:1}
+  .mobile-inv-bar .slot-cell{
+    flex:1; aspect-ratio:1;
+    border:1.5px solid var(--border); background:#0a0a0a;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--dim); font-size:13px;
+    position:relative; min-width:0;
+  }
+  .mobile-inv-bar .slot-cell.filled{background:#000}
+  .mobile-inv-bar .slot-cell .item-icon{width:90%; height:90%}
+  .mobile-inv-bar .slot-cell .lvbadge{
+    position:absolute; bottom:-1px; right:-1px;
+    font-size:8px; line-height:10px; padding:0 2px;
+    background:rgba(0,0,0,.85); font-weight:bold;
+  }
+  .mobile-inv-bar .perks-count{
+    display:flex; align-items:center; justify-content:center;
+    color:#c8a8ff; font-size:11px; padding:0 6px;
+    border-left:1px dashed var(--border); font-weight:bold;
+    white-space:nowrap;
+  }
 
   .actions{margin-bottom:4px}
   .actions button{padding:10px 6px; font-size:12px; letter-spacing:2px}
@@ -598,6 +630,7 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
     <div class="vs">VS</div>
     <div class="character enemy" id="enemy-card"></div>
   </div>
+  <div class="mobile-inv-bar" id="mobile-inv-bar" onclick="showInventoryModal()"></div>
   <div class="actions">
     <button id="btn-attack" class="primary">⚔  공  격   [SPACE]</button>
   </div>
@@ -2319,6 +2352,24 @@ function render(){
   renderPlayer();
   renderEnemy();
   renderActions();
+  renderMobileInv();
+}
+
+function renderMobileInv(){
+  const el = $('mobile-inv-bar');
+  if (!el) return;
+  const eq = G.player.equipment;
+  const slotsHtml = SLOTS.map(s => {
+    const it = eq[s.id];
+    if (!it){
+      return `<div class="slot-cell" title="${s.name}">${s.icon}</div>`;
+    }
+    const c = (RARITY_BY_ID[it.rarity] && RARITY_BY_ID[it.rarity].color) || '#ffae5c';
+    const lv = it.level || it.stage || 1;
+    return `<div class="slot-cell filled" style="border-color:${c}" title="${s.name}: ${it.name} Lv.${lv}">${itemIconHtml(it)}<span class="lvbadge" style="color:${c}">${lv}</span></div>`;
+  }).join('');
+  const perksCount = G.player.perks.length;
+  el.innerHTML = `<div class="slots">${slotsHtml}</div><div class="perks-count" title="특수효과">✨${perksCount}</div>`;
 }
 
 function renderPlayer(){
