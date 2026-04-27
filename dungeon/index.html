@@ -249,13 +249,54 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   border-color:#7c5aa8;
 }
 .choice .bonus-heal{
-  margin-top:8px; padding:6px 8px;
-  background:linear-gradient(90deg,rgba(94,219,122,.18),rgba(94,219,122,.05));
-  border:1px dashed #5edb7a;
-  color:#b6ffc9; font-weight:bold; font-size:11px; text-align:center;
-  letter-spacing:1px;
+  margin-top:10px; padding:10px 8px;
+  background:linear-gradient(90deg,rgba(94,219,122,.30),rgba(94,219,122,.10),rgba(94,219,122,.30));
+  border:2px solid #5edb7a;
+  color:#d8ffe2; font-weight:bold; font-size:13px; text-align:center;
+  letter-spacing:1px; text-shadow:0 0 8px rgba(94,219,122,.7), 1px 1px 0 #000;
+  display:flex; align-items:center; justify-content:center; gap:8px;
 }
-.choice.has-bonus{box-shadow:0 0 12px rgba(94,219,122,.25)}
+.choice .bonus-heal::before{
+  content:'♥'; font-size:20px; color:#ff7a8f;
+  animation:heartBeat 1.2s ease infinite;
+  text-shadow:0 0 10px rgba(255,122,143,.8);
+}
+.choice .bonus-heal::after{
+  content:'✦'; font-size:14px; color:#fff7a0;
+  animation:heartBeat 1.2s ease infinite reverse;
+}
+@keyframes heartBeat{
+  0%,100%{transform:scale(1)}
+  25%{transform:scale(1.25)}
+  50%{transform:scale(0.95)}
+  75%{transform:scale(1.15)}
+}
+.choice .bonus-badge{
+  position:absolute; top:-10px; right:-10px;
+  width:36px; height:36px;
+  background:radial-gradient(circle, #b6ffc9 0%, #5edb7a 50%, #2a7a3a 100%);
+  border:2px solid #fff;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; color:#a02030;
+  box-shadow:0 0 16px rgba(94,219,122,.9), inset 0 0 6px rgba(255,255,255,.5);
+  animation:badgeBounce 1.4s ease infinite;
+  z-index:3; pointer-events:none;
+  text-shadow:0 0 4px rgba(255,200,200,.5);
+}
+@keyframes badgeBounce{
+  0%,100%{transform:scale(1) rotate(-8deg)}
+  50%{transform:scale(1.18) rotate(8deg)}
+}
+.choice.has-bonus{
+  box-shadow:0 0 22px rgba(94,219,122,.55), 0 0 44px rgba(94,219,122,.22);
+  animation:cardGlow 2s ease infinite;
+  border-color:#5edb7a !important;
+}
+@keyframes cardGlow{
+  0%,100%{box-shadow:0 0 22px rgba(94,219,122,.55), 0 0 44px rgba(94,219,122,.22)}
+  50%{box-shadow:0 0 30px rgba(94,219,122,.75), 0 0 60px rgba(94,219,122,.35)}
+}
 
 .skip-reward-btn{
   background:transparent; color:var(--dim);
@@ -1888,7 +1929,9 @@ function showRewardModal(){
         compareHtml = `<div class="compare"><div class="new-tag">★ 새 장착 (슬롯 비어있음)</div></div>`;
       }
 
-      const bonusHtml = r.bonusHeal ? `<div class="bonus-heal">♥ 보너스 치유 +${r.bonusHeal} HP</div>` : '';
+      const bonusHtml = r.bonusHeal
+        ? `<div class="bonus-badge">♥</div><div class="bonus-heal">+${r.bonusHeal} HP 보너스 회복</div>`
+        : '';
       return `
         <div class="choice type-item${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">▣ 장 비 ▣</div>
@@ -1905,7 +1948,9 @@ function showRewardModal(){
       // perk
       const sameRarityCount = G.player.perks.filter(p => p.rarity === r.rarity).length;
       const totalCount = G.player.perks.length;
-      const bonusHtml = r.bonusHeal ? `<div class="bonus-heal">♥ 보너스 치유 +${r.bonusHeal} HP</div>` : '';
+      const bonusHtml = r.bonusHeal
+        ? `<div class="bonus-badge">♥</div><div class="bonus-heal">+${r.bonusHeal} HP 보너스 회복</div>`
+        : '';
       return `
         <div class="choice type-perk${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">✦ 특 수 효 과 ✦</div>
