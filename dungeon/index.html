@@ -1592,6 +1592,7 @@ function generateRewards(stage){
 function chooseReward(idx){
   const r = G.pendingReward[idx];
   if (!r) return;
+  const oldMax = maxHp(G.player);
   if (r.type === 'item'){
     const old = G.player.equipment[r.slot];
     G.player.equipment[r.slot] = r;
@@ -1606,9 +1607,16 @@ function chooseReward(idx){
   }
   G.rewardsTaken += 1;
   G.pendingReward = null;
-  // HP 자연 보정 (최대 hp 변화 시)
-  const max = maxHp(G.player);
-  if (G.player.hp > max) G.player.hp = max;
+  // 최대 HP 변화 처리 — 늘어난 만큼 현재 HP에도 채워줌
+  const newMax = maxHp(G.player);
+  if (newMax > oldMax){
+    const delta = newMax - oldMax;
+    G.player.hp = Math.min(newMax, G.player.hp + delta);
+    log(`최대 HP +${delta} → 현재 HP도 +${delta}`, 'heal');
+    showHealEffect(delta, false);
+  } else if (G.player.hp > newMax){
+    G.player.hp = newMax;
+  }
   G.stage += 1;
   hideModal();
   saveGame();
