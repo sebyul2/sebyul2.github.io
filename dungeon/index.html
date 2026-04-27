@@ -246,14 +246,14 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   background:linear-gradient(180deg,#2a1a3a,#180828);
   border-color:#7c5aa8;
 }
-.choice.type-heal .type-banner{
-  color:#b6ffc9;
-  background:linear-gradient(180deg,#2a5a1a,#082810);
-  border-color:#5edb7a;
+.choice .bonus-heal{
+  margin-top:8px; padding:6px 8px;
+  background:linear-gradient(90deg,rgba(94,219,122,.18),rgba(94,219,122,.05));
+  border:1px dashed #5edb7a;
+  color:#b6ffc9; font-weight:bold; font-size:11px; text-align:center;
+  letter-spacing:1px;
 }
-.choice.type-heal .slot-tag{color:#b6ffc9}
-.choice.type-heal .compare{background:rgba(20,60,30,.4)}
-.choice.type-heal .compare .accumulate{color:#b6ffc9}
+.choice.has-bonus{box-shadow:0 0 12px rgba(94,219,122,.25)}
 .choice .body{padding:10px 10px 12px; display:flex; flex-direction:column; flex:1}
 .choice .rarity{
   font-size:10px; letter-spacing:2px; text-align:center;
@@ -1253,7 +1253,7 @@ function newGame(){
   };
 }
 
-const TURN_INTERVAL_MS = 600;
+const TURN_INTERVAL_MS = 480;
 
 let G = newGame();
 
@@ -1535,7 +1535,7 @@ function endBattle(playerWon){
     {
       const ps = computeStats(G.player);
       const isBoss = G.battle.enemy.isBoss;
-      const healPct = isBoss ? 55 : 15;
+      const healPct = isBoss ? 55 : 10;
       const healAmt = Math.max(1, Math.floor(ps.hp * healPct / 100));
       log(isBoss ? '>> 보스 처치 보너스: 대회복!' : '> 스테이지 클리어 회복', 'reward');
       healPlayer(healAmt, true);
@@ -1562,21 +1562,6 @@ function generateRewards(stage){
   const weights = rarityWeights(stage);
   const choices = [];
   for (let i = 0; i < 3; i++){
-    // 10% 확률 회복 (한 보상 모달에 1개까지)
-    if (Math.random() < 0.10 && !choices.some(c => c.type === 'heal')){
-      const ps = computeStats(G.player);
-      const pct = 0.30 + Math.random() * 0.30; // 30~60%
-      const healAmt = Math.max(1, Math.floor(ps.hp * pct));
-      choices.push({
-        type: 'heal',
-        rarity: 'common',
-        name: '치유의 영약',
-        amount: healAmt,
-        pct: Math.floor(pct*100),
-        desc: `즉시 HP ${healAmt} 회복 (최대 ${Math.floor(pct*100)}%)`
-      });
-      continue;
-    }
     const rarity = weightedChoice(weights).id;
     const isItem = Math.random() < (G.battle.enemy.isBoss ? 0.45 : 0.55);
     if (isItem){
@@ -1585,6 +1570,15 @@ function generateRewards(stage){
     } else {
       choices.push(genPerk(rarity, stage));
     }
+  }
+  // 10% 확률: 3개 카드 중 1개에 보너스 회복 부여 (덤)
+  if (Math.random() < 0.10){
+    const ps = computeStats(G.player);
+    const pct = 0.30 + Math.random() * 0.30; // 30~60%
+    const healAmt = Math.max(1, Math.floor(ps.hp * pct));
+    const target = choices[Math.floor(Math.random() * choices.length)];
+    target.bonusHeal = healAmt;
+    target.bonusHealPct = Math.floor(pct * 100);
   }
   return choices;
 }
@@ -1598,12 +1592,14 @@ function chooseReward(idx){
     G.player.equipment[r.slot] = r;
     log(`장착: [${RARITY_BY_ID[r.rarity].name}] ${r.name}`, 'reward');
     if (old) log(`기존 [${RARITY_BY_ID[old.rarity].name}] ${old.name} 폐기`, '');
-  } else if (r.type === 'heal'){
-    log(`${r.name} 사용: HP +${r.amount}`, 'heal');
-    healPlayer(r.amount, true);
   } else {
     G.player.perks.push(r);
     log(`특수효과 획득: [${RARITY_BY_ID[r.rarity].name}] ${r.name}`, 'reward');
+  }
+  // 보너스 회복 처리 (덤)
+  if (r.bonusHeal){
+    log(`+ 보너스 치유: HP +${r.bonusHeal}`, 'heal');
+    healPlayer(r.bonusHeal, true);
   }
   G.rewardsTaken += 1;
   G.pendingReward = null;
@@ -1837,8 +1833,9 @@ function showRewardModal(){
         compareHtml = `<div class="compare"><div class="new-tag">★ 새 장착 (슬롯 비어있음)</div></div>`;
       }
 
+      const bonusHtml = r.bonusHeal ? `<div class="bonus-heal">♥ 보너스 치유 +${r.bonusHeal} HP</div>` : '';
       return `
-        <div class="choice type-item" data-idx="${idx}" onclick="chooseReward(${idx})">
+        <div class="choice type-item${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">▣ 장 비 ▣</div>
           <div class="body">
             <div class="rarity" style="color:${rDef.color}">${rDef.name}</div>
@@ -1846,31 +1843,16 @@ function showRewardModal(){
             <div class="name" style="color:${rDef.color}">${r.name}</div>
             <ul class="options">${optHtml}</ul>
             ${compareHtml}
-          </div>
-        </div>`;
-    } else if (r.type === 'heal'){
-      const ps = computeStats(G.player);
-      const after = Math.min(ps.hp, G.player.hp + r.amount);
-      return `
-        <div class="choice type-heal" data-idx="${idx}" onclick="chooseReward(${idx})">
-          <div class="type-banner">♥ 회 복 ♥</div>
-          <div class="body">
-            <div class="rarity" style="color:#5edb7a">즉시 사용</div>
-            <div class="slot-tag">─ 영약 ─</div>
-            <div class="name" style="color:#5edb7a">${r.name}</div>
-            <ul class="options"><li class="special">HP +${r.amount} (최대 ${r.pct}%)</li></ul>
-            <div class="compare">
-              <div class="head">현재 → 회복 후</div>
-              <div class="accumulate">${G.player.hp} → ${after} / ${ps.hp}</div>
-            </div>
+            ${bonusHtml}
           </div>
         </div>`;
     } else {
       // perk
       const sameRarityCount = G.player.perks.filter(p => p.rarity === r.rarity).length;
       const totalCount = G.player.perks.length;
+      const bonusHtml = r.bonusHeal ? `<div class="bonus-heal">♥ 보너스 치유 +${r.bonusHeal} HP</div>` : '';
       return `
-        <div class="choice type-perk" data-idx="${idx}" onclick="chooseReward(${idx})">
+        <div class="choice type-perk${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">✦ 특 수 효 과 ✦</div>
           <div class="body">
             <div class="rarity" style="color:${rDef.color}">${rDef.name}</div>
@@ -1881,6 +1863,7 @@ function showRewardModal(){
               <div class="head">＋ 누적 (교체 없음)</div>
               <div class="accumulate">현재 ${totalCount}개 / 같은 등급 ${sameRarityCount}개</div>
             </div>
+            ${bonusHtml}
           </div>
         </div>`;
     }
