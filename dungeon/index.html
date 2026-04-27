@@ -992,9 +992,9 @@ function genEnemy(stage){
 
   const isFinal = stage === 100;
 
-  // 스케일링: 단순 차감 공식에 맞게. 초반 적 atk 베이스 ↑ + 가파른 성장
+  // 스케일링: 단순 차감 공식에 맞게
   const baseHp  = Math.floor(45 + 12 * stage + stage * stage * 0.06);
-  const baseAtk = Math.floor(7 + 2.3 * stage);
+  const baseAtk = Math.floor(6 + 2.0 * stage);
   const baseDef = Math.floor(0.8 * stage);
   const baseSpd = Math.floor(8 + 0.4 * stage);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
@@ -1531,11 +1531,11 @@ function endBattle(playerWon){
       showVictoryModal();
       return;
     }
-    // 클리어 보너스 회복 (A: 매 스테이지 +8% / B: 보스 +40%)
+    // 클리어 보너스 회복 (A: 매 스테이지 +15% / B: 보스 +55%)
     {
       const ps = computeStats(G.player);
       const isBoss = G.battle.enemy.isBoss;
-      const healPct = isBoss ? 40 : 8;
+      const healPct = isBoss ? 55 : 15;
       const healAmt = Math.max(1, Math.floor(ps.hp * healPct / 100));
       log(isBoss ? '>> 보스 처치 보너스: 대회복!' : '> 스테이지 클리어 회복', 'reward');
       healPlayer(healAmt, true);
