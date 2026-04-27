@@ -1222,8 +1222,7 @@ const BOSS_NEGATIVES = [
   { id:'curse_glass_cannon', label:(v)=>`받는 모든 데미지 +${v}% (유리 같은 몸)`,              range:[25, 55] },
   { id:'curse_blood_offering', label:(v)=>`매 공격 시 자기 최대HP -${v}% (피의 제물)`,         range:[2, 5] },
   { id:'curse_revenge',      label:(v)=>`공격이 가한 데미지의 ${v}%가 자기에게 반사 (보복)`,    range:[15, 35] },
-  { id:'curse_doom_clock',   label:(v)=>`${v}턴 안에 적 처치 못하면 자기 최대HP -50% (운명의 시계)`, range:[20, 35] },
-  { id:'curse_swap_atk_def', label:(v)=>`자기 공격력↔방어력 교환 (역전)`,                       range:[1, 1] }
+  { id:'curse_doom_clock',   label:(v)=>`${v}턴 안에 적 처치 못하면 자기 최대HP -50% (운명의 시계)`, range:[20, 35] }
 ];
 
 function genBossItem(stage){
@@ -2025,10 +2024,6 @@ function computeStats(player){
   out.crit = clamp(out.crit, 0, 100);
   // 회피율 soft cap — 50까지 1:1, 그 이상은 단계적 diminishing returns
   out.evade = softCapEvade(out.evade);
-  // 저주: 공격력↔방어력 교환
-  if (mods.curse_swap_atk_def){
-    const tmp = out.atk; out.atk = out.def; out.def = tmp;
-  }
   return out;
 }
 
