@@ -476,9 +476,9 @@ const RARITIES = [
   { id:'common',    name:'일반',   color:'#b3b3b3', extras:0, baseWeight:600 },
   { id:'magic',     name:'매직',   color:'#5aa9ff', extras:1, baseWeight:250 },
   { id:'rare',      name:'레어',   color:'#ffd23f', extras:2, baseWeight:100 },
-  { id:'unique',    name:'유니크', color:'#ff7ac6', extras:3, baseWeight:35  },
-  { id:'legendary', name:'전설',   color:'#ff8a2c', extras:4, baseWeight:13  },
-  { id:'mythic',    name:'신화',   color:'#d05ce3', extras:5, baseWeight:2   }
+  { id:'unique',    name:'유니크', color:'#ff7ac6', extras:3, baseWeight:20  },
+  { id:'legendary', name:'전설',   color:'#ff8a2c', extras:4, baseWeight:5   },
+  { id:'mythic',    name:'신화',   color:'#d05ce3', extras:5, baseWeight:1   }
 ];
 const RARITY_BY_ID = Object.fromEntries(RARITIES.map(r => [r.id, r]));
 const RARITY_INDEX = Object.fromEntries(RARITIES.map((r,i) => [r.id, i]));
@@ -490,9 +490,9 @@ function rarityWeights(stage){
     if (r.id === 'common')         w *= Math.max(0.10, 1 - t * 1.4);
     else if (r.id === 'magic')     w *= Math.max(0.50, 1 - t * 0.5);
     else if (r.id === 'rare')      w *= 1 + t * 0.6;
-    else if (r.id === 'unique')    w *= 1 + t * 1.5;
-    else if (r.id === 'legendary') w *= 1 + t * 3.0;
-    else if (r.id === 'mythic')    w *= 1 + t * 6.0;
+    else if (r.id === 'unique')    w *= 1 + t * 0.8;
+    else if (r.id === 'legendary') w *= 1 + t * 1.5;
+    else if (r.id === 'mythic')    w *= 1 + t * 2.5;
     return { ...r, weight: w };
   });
 }
