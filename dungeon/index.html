@@ -809,7 +809,11 @@ const SPECIAL_AFFIXES = [
   { id:'crit_lifesteal',name:'치유 흡정',     range:[2,8],   desc:(v)=>`치명타 시 최대 HP의 ${v}% 회복` },
   { id:'firstblood',    name:'선공',          range:[10,40], desc:(v)=>`전투 첫 턴 데미지 +${v}%` },
   { id:'stagger',       name:'경직',          range:[3,10],  desc:(v)=>`${v}% 확률로 적 행동 1턴 무효` },
-  { id:'cleave',        name:'관통타',        range:[5,14],  desc:(v)=>`매 공격이 적 방어력을 ${v} 영구 감소` }
+  { id:'cleave',        name:'관통타',        range:[5,14],  desc:(v)=>`매 공격이 적 방어력을 ${v} 영구 감소` },
+  // 더 특수한 + 효과
+  { id:'crit_burst',    name:'치명타 폭발',   range:[5,12],  desc:(v)=>`치명타 시 적 최대 HP의 ${v}% 진실 데미지 추가` },
+  { id:'omen_5',        name:'운명의 다섯',   range:[1,1],   desc:'매 5번째 자기 공격이 적 즉시 처형' },
+  { id:'first_executor',name:'선공의 처형',   range:[15,30], desc:(v)=>`전투 첫 공격 시 적 최대 HP의 ${v}% 진실 데미지 추가` }
 ];
 
 // 누적 perk (특수효과) — 전체 너프 적용
@@ -1072,7 +1076,13 @@ const BOSS_NEGATIVES = [
   { id:'curse_recoil',  label:(v)=>`공격 시 ${v}% 확률로 자기 최대HP -5% (반동)`,             range:[6, 12] },
   { id:'curse_chaos',   label:(v)=>`공격 시 ${v}% 확률로 자기 자신을 타격 (혼란)`,             range:[3, 7]  },
   { id:'curse_grow',    label:(v)=>`매 턴 적 HP +${v}% 회복 (성장)`,                          range:[2, 4]  },
-  { id:'curse_explode', label:(v)=>`보스 처치 시 자기 최대HP -${v}% (자폭 유언)`,              range:[10, 20] }
+  { id:'curse_explode', label:(v)=>`보스 처치 시 자기 최대HP -${v}% (자폭 유언)`,              range:[10, 20] },
+  // 더 특수한 - 효과
+  { id:'curse_glass_cannon', label:(v)=>`받는 모든 데미지 +${v}% (유리 같은 몸)`,              range:[25, 55] },
+  { id:'curse_blood_offering', label:(v)=>`매 공격 시 자기 최대HP -${v}% (피의 제물)`,         range:[2, 5] },
+  { id:'curse_revenge',      label:(v)=>`공격이 가한 데미지의 ${v}%가 자기에게 반사 (보복)`,    range:[15, 35] },
+  { id:'curse_doom_clock',   label:(v)=>`${v}턴 안에 적 처치 못하면 자기 최대HP -50% (운명의 시계)`, range:[20, 35] },
+  { id:'curse_swap_atk_def', label:(v)=>`자기 공격력↔방어력 교환 (역전)`,                       range:[1, 1] }
 ];
 
 function genBossItem(stage){
@@ -1081,6 +1091,9 @@ function genBossItem(stage){
   const tpl = pool[Math.floor(Math.random() * pool.length)];
   const slotDef = SLOT_BY_ID[tpl.slot];
   const sp = assignItemSprite(tpl.slot, stage);
+  // 20층+ 너프: 보스템이 너무 압도적이라 후반에 약하게
+  const nerfMult = stage >= 50 ? 0.72 : (stage >= 20 ? 0.85 : 1.0);
+  const primaryVal = Math.round(tpl.primaryVal * nerfMult);
   const item = {
     type: 'item',
     slot: tpl.slot,
@@ -1090,24 +1103,42 @@ function genBossItem(stage){
     name: tpl.name,
     isBossItem: true,
     spriteRow: sp.row, spriteCol: sp.col,
-    mods: [{ id: slotDef.primary + '_flat', value: tpl.primaryVal }],
-    options: [{ kind:'primary', label: `${STAT_NAMES[slotDef.primary]} +${tpl.primaryVal}${slotDef.primary==='crit'?'%':''}` }]
+    mods: [{ id: slotDef.primary + '_flat', value: primaryVal }],
+    options: [{ kind:'primary', label: `${STAT_NAMES[slotDef.primary]} +${primaryVal}${slotDef.primary==='crit'?'%':''}` }]
   };
   for (const ext of tpl.extras){
-    item.mods.push({ id: ext.id, value: ext.v });
+    // basic affix는 너프 적용, 특수효과 mod는 너프 약하게 (확률·횟수 등은 그대로)
     const aff = BASIC_AFFIXES.find(a => a.id === ext.id);
+    const v = aff ? Math.max(1, Math.round(ext.v * nerfMult)) : Math.max(1, Math.round(ext.v * Math.max(0.85, nerfMult)));
+    item.mods.push({ id: ext.id, value: v });
     if (aff){
-      item.options.push({ kind:'basic', label: affixLabel(aff, ext.v) });
+      item.options.push({ kind:'basic', label: affixLabel(aff, v) });
     } else {
       item.options.push({
         kind:'special',
-        label: describeMod({id:ext.id, value:ext.v}),
+        label: describeMod({id:ext.id, value:v}),
         desc: modExplain(ext.id) || ''
       });
     }
   }
-  // 마이너스 옵션 1개 부착 (저주)
-  const neg = choice(BOSS_NEGATIVES);
+  // 마이너스 옵션 1개 부착 (저주). stage>=20 부턴 2개로 강화.
+  const negCount = stage >= 50 ? 2 : (stage >= 20 ? (Math.random() < 0.6 ? 2 : 1) : 1);
+  const usedNeg = new Set();
+  for (let n = 0; n < negCount; n++){
+    let neg;
+    let tries = 0;
+    do {
+      neg = choice(BOSS_NEGATIVES);
+      tries++;
+    } while (usedNeg.has(neg.id) && tries < 10);
+    if (usedNeg.has(neg.id)) break;
+    usedNeg.add(neg.id);
+    addBossNegativeOption(item, neg, stage);
+  }
+  return item;
+}
+
+function addBossNegativeOption(item, neg, stage){
   const negVal = rand(neg.range[0], neg.range[1]);
   item.mods.push({ id: neg.id, value: negVal });
   item.options.push({ kind:'negative', label: `※ ${neg.label(negVal)}` });
@@ -1486,12 +1517,14 @@ function genEnemy(stage){
 
   const isFinal = stage === 100;
 
-  // levelScale 동일 곡선에 0.85 비율 — 플레이어가 누적 강화로 더 빨리 큼
+  // levelScale 동일 곡선에 비율 적용.
+  // 1~5층: 약간 상향 (1.10), 6층부터 가속(+0.009/층).
   const ls = levelScale(stage);
-  const eScale = ls * 0.85;
-  const baseHp  = Math.round(38  * eScale);
+  const baseMult = 1.10 + Math.max(0, stage - 5) * 0.009;
+  const eScale = ls * baseMult;
+  const baseHp  = Math.round(36  * eScale);
   const baseAtk = Math.round(4.5 * eScale);
-  const baseDef = Math.round(0.55 * eScale);
+  const baseDef = Math.round(1.0 * eScale);
   const baseEvade = clamp(Math.floor(stage * 0.15), 0, 25);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
 
@@ -1617,7 +1650,11 @@ function genItem(slot, rarity, stage){
       usedSp.add(sp.id);
       const val = rollSpecialValue(sp, rarity);
       item.mods.push({ id: sp.id, value: val });
-      item.options.push({ kind:'special', label: `${sp.name} ${val}${['lifesteal','thorns','doublestrike','evade','execute','bleed','pierce','crit_lifesteal','firstblood','stagger'].includes(sp.id) ? '%' : ''}`, desc: sp.desc(val) });
+      const _pctSp = ['lifesteal','thorns','doublestrike','evade','execute','bleed','pierce','crit_lifesteal','firstblood','stagger','crit_burst','first_executor'];
+      const _onSp = ['omen_5'];
+      const _suf = _pctSp.includes(sp.id) ? '%' : '';
+      const _label = _onSp.includes(sp.id) ? sp.name : `${sp.name} ${val}${_suf}`;
+      item.options.push({ kind:'special', label: _label, desc: sp.desc(val) });
     }
   }
 
@@ -1752,6 +1789,14 @@ function describeMod(m){
     case 'loot_floor': return `보상 최소 등급 +${m.value}단계`;
     case 'loot_boss_drop': return `일반 적 보스템 드롭 ${m.value}%`;
     case 'loot_upgrade_all': return `모든 보상 +1 등급`;
+    case 'crit_burst': return `치명타 폭발 ${m.value}%`;
+    case 'omen_5': return `매 5번째 공격 처형`;
+    case 'first_executor': return `선공의 처형 ${m.value}%`;
+    case 'curse_glass_cannon': return `받는 데미지 +${m.value}%`;
+    case 'curse_blood_offering': return `매 공격 자기 HP -${m.value}%`;
+    case 'curse_revenge': return `보복 반사 ${m.value}%`;
+    case 'curse_doom_clock': return `${m.value}턴 시간 압박`;
+    case 'curse_swap_atk_def': return `공격력↔방어력 교환`;
     default: return `${m.id} ${m.value}`;
   }
 }
@@ -1807,6 +1852,10 @@ function computeStats(player){
   out.crit = clamp(out.crit, 0, 100);
   // 회피율 soft cap — 50까지 1:1, 그 이상은 단계적 diminishing returns
   out.evade = softCapEvade(out.evade);
+  // 저주: 공격력↔방어력 교환
+  if (mods.curse_swap_atk_def){
+    const tmp = out.atk; out.atk = out.def; out.def = tmp;
+  }
   return out;
 }
 
@@ -2054,6 +2103,15 @@ function attack(){
     log(`성장의 저주: 적 HP +${heal}`, 'effect');
     showDamage('enemy', heal, 'heal');
   }
+  // 저주: 운명의 시계 — 시간 초과 시 자기 max HP -50%
+  if (mods.curse_doom_clock && G.battle.turn >= mods.curse_doom_clock && !G.battle.doomTriggered){
+    G.battle.doomTriggered = true;
+    const dmg = Math.max(1, Math.floor(maxHp(G.player) * 0.5));
+    G.player.hp = Math.max(0, G.player.hp - dmg);
+    log(`운명의 시계 발동! 시간 초과로 HP -${dmg}`, 'crit');
+    showDamage('player', dmg, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
 
   // 1) 플레이어 공격 (eternal_rage: 매 턴 atk 누적)
   if (mods.rage_per_turn){
@@ -2126,10 +2184,52 @@ function attack(){
     log(`>> 처형! 즉시 사망`, 'crit');
   }
 
+  // 자기 공격 카운트 (omen_5 발동용)
+  if (!chaosTriggered){
+    G.battle.playerAttackCount = (G.battle.playerAttackCount || 0) + 1;
+    if (mods.omen_5 && G.battle.playerAttackCount % 5 === 0){
+      log(`>> 운명의 다섯! 적 즉시 처형`, 'crit');
+      dmg = Math.max(dmg, e.hp);
+    }
+    // 선공의 처형 — 첫 공격 시 적 max HP -N% 진실 데미지 추가
+    if (G.battle.firstStrike && mods.first_executor){
+      const td = Math.max(1, Math.floor(e.maxHp * mods.first_executor / 100));
+      e.hp -= td;
+      log(`선공의 처형! 진실 데미지 ${td}`, 'effect');
+      showDamage('enemy', td, 'crit');
+      if (e.hp <= 0) return endBattle(true);
+    }
+  }
+
   if (dmg > 0){
     e.hp -= dmg;
     log(`${G.player.name||'당신'}의 공격! ${dmg} 데미지${isCrit?' (치명타!)':''}`, isCrit?'crit':'');
     showDamage('enemy', dmg, isCrit ? 'crit' : '');
+  }
+
+  // 보복의 저주 — 가한 데미지의 N% 자기에게 반사
+  if (dmg > 0 && mods.curse_revenge && !chaosTriggered){
+    const rev = Math.max(1, Math.floor(dmg * mods.curse_revenge / 100));
+    G.player.hp = Math.max(0, G.player.hp - rev);
+    log(`보복의 저주! 데미지 반사 -${rev}`, 'crit');
+    showDamage('player', rev, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
+  // 피의 제물 — 매 공격 시 자기 max HP -N%
+  if (mods.curse_blood_offering && !chaosTriggered){
+    const sac = Math.max(1, Math.floor(maxHp(G.player) * mods.curse_blood_offering / 100));
+    G.player.hp = Math.max(0, G.player.hp - sac);
+    log(`피의 제물! HP -${sac}`, 'crit');
+    showDamage('player', sac, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
+  // 치명타 폭발 — 치명타 시 적 max HP -N% 진실
+  if (isCrit && mods.crit_burst){
+    const td = Math.max(1, Math.floor(e.maxHp * mods.crit_burst / 100));
+    e.hp -= td;
+    log(`치명타 폭발! 진실 데미지 ${td}`, 'effect');
+    showDamage('enemy', td, 'crit');
+    if (e.hp <= 0) return endBattle(true);
   }
 
   // 저주: 치명타 시 자기 HP -%
@@ -2261,6 +2361,10 @@ function attack(){
       // 저주: 보스에게 받는 데미지 +%
       if (e.isBoss && mods.curse_boss_vuln){
         edmg = Math.floor(edmg * (1 + mods.curse_boss_vuln / 100));
+      }
+      // 저주: 유리 같은 몸 — 받는 모든 데미지 +%
+      if (mods.curse_glass_cannon){
+        edmg = Math.floor(edmg * (1 + mods.curse_glass_cannon / 100));
       }
       // HP 30% 이하 시 데미지 감소 (low_hp_dr)
       if (edmg > 0 && mods.low_hp_dr && G.player.hp <= ps.hp * 0.3){
@@ -2546,7 +2650,8 @@ function modIcon(id){
     cycle5_freeze:'❄', cycle7_invuln:'⛨',
     first_hit_block:'⛨',
     loot_choices:'🎁', loot_upgrade:'🍀', loot_extra:'🎲',
-    loot_floor:'⭐', loot_boss_drop:'👹', loot_upgrade_all:'✨'
+    loot_floor:'⭐', loot_boss_drop:'👹', loot_upgrade_all:'✨',
+    crit_burst:'💢', omen_5:'5️⃣', first_executor:'🚀'
   };
   return m[id] || '✦';
 }
@@ -2557,13 +2662,17 @@ function modShort(id, v){
   if (id === 'first_hit_block') return '';
   if (id === 'cycle5_freeze' || id === 'cycle7_invuln') return '';
   if (id === 'loot_upgrade_all') return 'ON';
+  if (id === 'curse_swap_atk_def' || id === 'omen_5') return 'ON';
+  if (id === 'curse_doom_clock') return `${v}T`;
   const PCT = new Set([
     'atk_pct','hp_pct','def_pct','regen_pct',
     'evade_flat','crit_flat','critdmg_flat',
     'lifesteal','thorns','doublestrike','evade','execute','bleed',
     'pierce','crit_lifesteal','firstblood','stagger',
     'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct',
-    'loot_upgrade','loot_extra','loot_boss_drop'
+    'loot_upgrade','loot_extra','loot_boss_drop',
+    'crit_burst','first_executor',
+    'curse_glass_cannon','curse_blood_offering','curse_revenge'
   ]);
   return PCT.has(id) ? `+${v}%` : `+${v}`;
 }
@@ -2814,7 +2923,12 @@ function modShortLabel(id){
     curse_no_lifesteal:'흡혈 봉인', curse_no_revive:'부활 봉인',
     curse_boss_vuln:'보스 피격 증가%', curse_first_miss:'첫 공격 빗나감',
     curse_brittle:'취약%', curse_recoil:'반동%', curse_chaos:'혼란%',
-    curse_grow:'적 성장%', curse_explode:'자폭%'
+    curse_grow:'적 성장%', curse_explode:'자폭%',
+    curse_glass_cannon:'유리 같은 몸%', curse_blood_offering:'피의 제물%',
+    curse_revenge:'보복%', curse_doom_clock:'운명의 시계',
+    curse_swap_atk_def:'공방 교환',
+    crit_burst:'치명타 폭발%', omen_5:'운명의 다섯',
+    first_executor:'선공의 처형%'
   };
   return map[id] || id;
 }
