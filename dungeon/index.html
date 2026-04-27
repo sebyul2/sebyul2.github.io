@@ -932,14 +932,18 @@ const BOSS_DROPS = {
   ]
 };
 
-// 보스템 마이너스 옵션 풀 — 강한 효과의 trade-off
+// 보스템 마이너스 옵션 풀 — "이상하고 특수한" trade-off (저주)
 const BOSS_NEGATIVES = [
-  { id:'atk_pct',      label:(v)=>`공격력 강화 ${v}%`,   range:[-15, -5] },
-  { id:'hp_pct',       label:(v)=>`체력 강화 ${v}%`,     range:[-15, -5] },
-  { id:'def_pct',      label:(v)=>`방어력 강화 ${v}%`,   range:[-20, -8] },
-  { id:'crit_flat',    label:(v)=>`치명타율 ${v}%`,      range:[-8, -3]  },
-  { id:'critdmg_flat', label:(v)=>`치명타뎀 ${v}%`,      range:[-30, -10]},
-  { id:'evade_flat',   label:(v)=>`회피율 ${v}%`,        range:[-8, -3]  }
+  { id:'curse_drain', label:(v)=>`매 턴 HP -${v} (저주)`,                     range:[1, 4] },
+  { id:'curse_cycle5',label:(v)=>`매 5턴마다 HP -${v}% (광기)`,               range:[3, 7] },
+  { id:'curse_heal',  label:(v)=>`받는 모든 회복 -${v}% (저주받은 피)`,        range:[20, 45] },
+  { id:'curse_crit_self',label:(v)=>`치명타 시 자기 HP -${v}% (반동)`,        range:[3, 8] },
+  { id:'curse_evade_silence',label:(v)=>`회피 성공 시 다음 본인 공격 무효 (역류)`, range:[1, 1] },
+  { id:'curse_slow_start',label:(v)=>`처음 ${v}턴 데미지 절반 (지각)`,         range:[3, 5] },
+  { id:'curse_no_lifesteal',label:(v)=>`흡혈 효과 무효화 (마른 핏줄)`,         range:[1, 1] },
+  { id:'curse_no_revive',label:(v)=>`부활 효과 무효화 (영면)`,                 range:[1, 1] },
+  { id:'curse_boss_vuln',label:(v)=>`보스에게 받는 데미지 +${v}% (오만)`,      range:[20, 50] },
+  { id:'curse_first_miss',label:(v)=>`전투 첫 공격 무조건 빗나감 (둔감)`,      range:[1, 1] }
 ];
 
 function genBossItem(stage){
@@ -1810,6 +1814,11 @@ function showDamage(side, value, kind=''){
 }
 
 function healPlayer(amount, big=false){
+  // curse_heal — 저주받은 피: 모든 회복량 감소
+  const mods = aggregateMods(G.player);
+  if (mods.curse_heal){
+    amount = Math.max(1, Math.floor(amount * (1 - mods.curse_heal / 100)));
+  }
   const max = maxHp(G.player);
   const before = G.player.hp;
   G.player.hp = Math.min(max, G.player.hp + amount);
@@ -1855,6 +1864,24 @@ function attack(){
     }
   }
 
+  // 저주: 매 턴 HP 손실
+  if (mods.curse_drain){
+    const dmg = mods.curse_drain;
+    G.player.hp = Math.max(0, G.player.hp - dmg);
+    log(`저주: HP -${dmg}`, 'crit');
+    showDamage('player', dmg, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
+  // 저주: 매 5턴 HP -%
+  if (mods.curse_cycle5 && G.battle.turn % 5 === 0){
+    const max = maxHp(G.player);
+    const dmg = Math.max(1, Math.floor(max * mods.curse_cycle5 / 100));
+    G.player.hp = Math.max(0, G.player.hp - dmg);
+    log(`광기: HP -${dmg}`, 'crit');
+    showDamage('player', dmg, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
+
   // 1) 플레이어 공격 (eternal_rage: 매 턴 atk 누적)
   if (mods.rage_per_turn){
     G.battle.rage = (G.battle.rage || 0) + mods.rage_per_turn;
@@ -1885,15 +1912,36 @@ function attack(){
   }
   let { dmg, isCrit } = calcOutgoingDamage(attackerStats, e, opts);
 
+  // 저주: 처음 N턴 데미지 절반
+  if (mods.curse_slow_start && G.battle.turn <= mods.curse_slow_start){
+    dmg = Math.max(1, Math.floor(dmg * 0.5));
+  }
+  // 저주: 첫 공격 빗나감
+  if (mods.curse_first_miss && G.battle.firstStrike){
+    log('둔감의 저주: 첫 공격 빗나감!', 'miss');
+    dmg = 0;
+  }
+
   // 처형
-  if (mods.execute && (e.hp - dmg) > 0 && e.hp <= e.maxHp * mods.execute / 100){
+  if (dmg > 0 && mods.execute && (e.hp - dmg) > 0 && e.hp <= e.maxHp * mods.execute / 100){
     dmg = e.hp;
     log(`>> 처형! 즉시 사망`, 'crit');
   }
 
-  e.hp -= dmg;
-  log(`${G.player.name||'당신'}의 공격! ${dmg} 데미지${isCrit?' (치명타!)':''}`, isCrit?'crit':'');
-  showDamage('enemy', dmg, isCrit ? 'crit' : '');
+  if (dmg > 0){
+    e.hp -= dmg;
+    log(`${G.player.name||'당신'}의 공격! ${dmg} 데미지${isCrit?' (치명타!)':''}`, isCrit?'crit':'');
+    showDamage('enemy', dmg, isCrit ? 'crit' : '');
+  }
+
+  // 저주: 치명타 시 자기 HP -%
+  if (isCrit && mods.curse_crit_self){
+    const selfDmg = Math.max(1, Math.floor(maxHp(G.player) * mods.curse_crit_self / 100));
+    G.player.hp = Math.max(0, G.player.hp - selfDmg);
+    log(`반동! 자기 HP -${selfDmg}`, 'crit');
+    showDamage('player', selfDmg, '');
+    if (G.player.hp <= 0) return endBattle(false);
+  }
 
   // 치명타 연쇄
   if (isCrit && mods.crit_chain){
@@ -1913,8 +1961,8 @@ function attack(){
     e.armorBroken = (e.armorBroken || 0) + mods.cleave;
   }
 
-  // 흡혈 (lifesteal) — 소수점 누적
-  if (mods.lifesteal){
+  // 흡혈 (lifesteal) — 소수점 누적, 마른 핏줄 저주 시 무효
+  if (mods.lifesteal && !mods.curse_no_lifesteal){
     const heal = fractionalApply('lifesteal', dmg * mods.lifesteal / 100);
     if (heal > 0) healPlayer(heal);
   }
@@ -1994,6 +2042,11 @@ function attack(){
         showDamage('enemy', counter, '');
         if (e.hp <= 0) return endBattle(true);
       }
+      // 저주: 회피 시 다음 본인 공격 무효
+      if (mods.curse_evade_silence){
+        G.battle.disarmNext = true;
+        log('역류의 저주: 다음 공격 무효', 'crit');
+      }
     } else {
       const ed = calcOutgoingDamage(
         { atk: e.atk, crit: e.crit, critdmg: e.critdmg },
@@ -2006,6 +2059,10 @@ function attack(){
         G.battle.firstHitBlocked = true;
         log('신성한 보호막! 첫 피격 무효', 'effect');
         edmg = 0;
+      }
+      // 저주: 보스에게 받는 데미지 +%
+      if (e.isBoss && mods.curse_boss_vuln){
+        edmg = Math.floor(edmg * (1 + mods.curse_boss_vuln / 100));
       }
       // HP 30% 이하 시 데미지 감소 (low_hp_dr)
       if (edmg > 0 && mods.low_hp_dr && G.player.hp <= ps.hp * 0.3){
