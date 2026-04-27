@@ -192,6 +192,8 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
 .actions button.primary{border-color:var(--accent); color:var(--accent)}
 .actions button.primary:hover{background:var(--accent); color:var(--bg)}
 .actions button.toggle.on{border-color:#5ec27a; color:#5ec27a}
+.actions button.skip-mode{border-color:#ffae5c; color:#ffae5c; background:rgba(255,174,92,.08)}
+.actions button.skip-mode:hover:not(:disabled){background:#ffae5c; color:var(--bg)}
 
 .log{
   border:2px solid var(--border); background:var(--panel);
@@ -468,7 +470,7 @@ function weightedChoice(items, weightKey='weight'){
 =========================================================== */
 
 const STAT_NAMES = {
-  hp:'체력', atk:'공격력', def:'방어력', spd:'속도',
+  hp:'체력', atk:'공격력', def:'방어력', evade:'회피율',
   crit:'치명타율', critdmg:'치명타뎀'
 };
 
@@ -530,13 +532,12 @@ const BASIC_AFFIXES = [
   { id:'atk_pct',     stat:'atk',     type:'pct',  range:[3,11] },
   { id:'hp_pct',      stat:'hp',      type:'pct',  range:[3,11] },
   { id:'def_pct',     stat:'def',     type:'pct',  range:[4,14] },
-  { id:'spd_pct',     stat:'spd',     type:'pct',  range:[3,9]  },
+  { id:'evade_flat',  stat:'evade',   type:'flat', range:[2,6]  },
   { id:'crit_flat',   stat:'crit',    type:'flat', range:[2,7]  },
   { id:'critdmg_flat',stat:'critdmg', type:'flat', range:[8,28] },
   { id:'atk_flat',    stat:'atk',     type:'flat', range:[2,9]  },
   { id:'hp_flat',     stat:'hp',      type:'flat', range:[12,55]},
-  { id:'def_flat',    stat:'def',     type:'flat', range:[1,5]  },
-  { id:'spd_flat',    stat:'spd',     type:'flat', range:[1,4]  }
+  { id:'def_flat',    stat:'def',     type:'flat', range:[1,5]  }
 ];
 function affixLabel(a, val){
   const statName = STAT_NAMES[a.stat];
@@ -567,7 +568,7 @@ const PERKS = {
     { id:'pwr_c',  name:'근력 훈련', range:[2,5],  rarity:'common', mods:(v)=>[{id:'atk_pct',value:v}] },
     { id:'tgh_c',  name:'단련',     range:[2,5],  rarity:'common', mods:(v)=>[{id:'def_pct',value:v}] },
     { id:'vit_c',  name:'활력',     range:[2,5],  rarity:'common', mods:(v)=>[{id:'hp_pct',value:v}] },
-    { id:'agl_c',  name:'민첩',     range:[2,5],  rarity:'common', mods:(v)=>[{id:'spd_pct',value:v}] },
+    { id:'agl_c',  name:'민첩',     range:[2,5],  rarity:'common', mods:(v)=>[{id:'evade_flat',value:v}] },
     { id:'foc_c',  name:'집중',     range:[1,4],  rarity:'common', mods:(v)=>[{id:'crit_flat',value:v}] },
   ],
   magic: [
@@ -588,7 +589,7 @@ const PERKS = {
     { id:'thn_r',  name:'반격술',     range:[10,18],rarity:'rare',
       mods:(v)=>[{id:'thorns',value:v}] },
     { id:'evd_r',  name:'그림자 보법',range:[3,7],  rarity:'rare',
-      mods:(v)=>[{id:'evade',value:v},{id:'spd_pct',value:5}] },
+      mods:(v)=>[{id:'evade_flat',value:v + 3}] },
     { id:'brk_r',  name:'갑옷 파괴',  range:[8,15], rarity:'rare',
       mods:(v)=>[{id:'pierce',value:v}] },
   ],
@@ -636,8 +637,8 @@ const PERKS = {
       desc:(v)=>`받는 모든 데미지 ${v}% 감소`,
       mods:(v)=>[{id:'dmg_reduction',value:v}] },
     { id:'ava_m',  name:'신의 화신',    range:[20,35], rarity:'mythic',
-      desc:(v)=>`모든 스탯 +${v}%`,
-      mods:(v)=>[{id:'atk_pct',value:v},{id:'hp_pct',value:v},{id:'def_pct',value:v},{id:'spd_pct',value:v}] },
+      desc:(v)=>`공격력/체력/방어력 +${v}%, 회피 +${Math.floor(v/2)}%`,
+      mods:(v)=>[{id:'atk_pct',value:v},{id:'hp_pct',value:v},{id:'def_pct',value:v},{id:'evade_flat',value:Math.floor(v/2)}] },
     { id:'ann_m',  name:'천멸',         range:[5,10], rarity:'mythic',
       desc:(v)=>`적 HP ${v}% 이하면 처형, 관통 +30%`,
       mods:(v)=>[{id:'execute',value:v},{id:'pierce',value:30}] },
@@ -996,7 +997,7 @@ function genEnemy(stage){
   const baseHp  = Math.floor(45 + 12 * stage + stage * stage * 0.06);
   const baseAtk = Math.floor(6 + 2.0 * stage);
   const baseDef = Math.floor(0.8 * stage);
-  const baseSpd = Math.floor(8 + 0.4 * stage);
+  const baseEvade = clamp(Math.floor(stage * 0.15), 0, 25);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
 
   const bossMult = isBoss ? 1.85 : 1.0;
@@ -1012,7 +1013,7 @@ function genEnemy(stage){
     hp: hp,
     atk: Math.floor(baseAtk * (isBoss ? 1.25 : 1) * (isFinal ? 1.4 : 1)),
     def: Math.floor(baseDef * (isBoss ? 1.2 : 1) * (isFinal ? 1.3 : 1)),
-    spd: baseSpd,
+    evade: baseEvade,
     crit: baseCrit,
     critdmg: 150,
     bleed: 0,
@@ -1028,17 +1029,16 @@ function spriteBgPos(idx){
   return `${c * 100/9}% ${r * 100/9}%`;
 }
 
-function rollAffixValue(affix, rarity, stage){
+function rollAffixValue(affix, rarity, level){
   const r = RARITY_INDEX[rarity];
   let val = rand(affix.range[0], affix.range[1]);
-  // pct 옵션은 rarity로만 살짝 보정, stage 영향 작음
+  // 장비 레벨에 따라 옵션 수치도 스케일링
   if (affix.type === 'pct'){
-    val = Math.floor(val * (1 + r * 0.10) * (1 + stage * 0.004));
+    val = Math.floor(val * (1 + r * 0.10) * (1 + level * 0.006));
   } else if (affix.stat === 'hp' || affix.stat === 'atk' || affix.stat === 'def'){
-    // flat 스탯은 stage에 비례해서 크게 증가
-    val = Math.floor(val * (1 + r * 0.20) * (1 + stage * 0.06));
+    val = Math.floor(val * (1 + r * 0.20) * (1 + level * 0.10));
   } else {
-    val = Math.floor(val * (1 + r * 0.12));
+    val = Math.floor(val * (1 + r * 0.12) * (1 + level * 0.015));
   }
   return Math.max(1, val);
 }
@@ -1053,18 +1053,19 @@ function rollSpecialValue(affix, rarity){
 function genItem(slot, rarity, stage){
   const slotDef = SLOT_BY_ID[slot];
   const rDef = RARITY_BY_ID[rarity];
+  const level = stage; // 장비 레벨 = drop stage (1~100)
 
   const item = {
     type:'item',
-    slot, rarity, stage,
+    slot, rarity, stage, level,
     name: genItemName(slot, rarity),
     mods: [],
     options: []
   };
 
-  // 1차 스탯 (모든 장비)
+  // 1차 스탯 (모든 장비) — 레벨에 비례해 크게 증가
   let baseVal = rand(slotDef.range[0], slotDef.range[1]);
-  baseVal = Math.floor(baseVal * (1 + RARITY_INDEX[rarity] * 0.18) * (1 + stage * 0.07));
+  baseVal = Math.floor(baseVal * (1 + RARITY_INDEX[rarity] * 0.18) * (1 + level * 0.10));
   if (slotDef.primary === 'hp')   baseVal = Math.max(8, baseVal);
   if (slotDef.primary === 'crit') baseVal = clamp(baseVal, 1, 25);
 
@@ -1084,7 +1085,7 @@ function genItem(slot, rarity, stage){
     if (usedStats.has(aff.stat)) break;
     usedStats.add(aff.stat);
 
-    const val = rollAffixValue(aff, rarity, stage);
+    const val = rollAffixValue(aff, rarity, level);
     item.mods.push({ id: aff.id, value: val });
     item.options.push({ kind:'basic', label: affixLabel(aff, val) });
   }
@@ -1144,11 +1145,10 @@ function describeMod(m){
     case 'atk_pct': return `공격력 +${m.value}%`;
     case 'hp_pct': return `체력 +${m.value}%`;
     case 'def_pct': return `방어력 +${m.value}%`;
-    case 'spd_pct': return `속도 +${m.value}%`;
     case 'atk_flat': return `공격력 +${m.value}`;
     case 'hp_flat': return `체력 +${m.value}`;
     case 'def_flat': return `방어력 +${m.value}`;
-    case 'spd_flat': return `속도 +${m.value}`;
+    case 'evade_flat': return `회피율 +${m.value}%`;
     case 'crit_flat': return `치명타율 +${m.value}%`;
     case 'critdmg_flat': return `치명타뎀 +${m.value}%`;
     case 'lifesteal': return `흡혈 ${m.value}%`;
@@ -1196,19 +1196,20 @@ function aggregateMods(player){
 function computeStats(player){
   const base = { ...player.base };
   const mods = aggregateMods(player);
-  const flat = { hp:0, atk:0, def:0, spd:0, crit:0, critdmg:0 };
-  const pct  = { hp:0, atk:0, def:0, spd:0 };
+  const flat = { hp:0, atk:0, def:0, evade:0, crit:0, critdmg:0 };
+  const pct  = { hp:0, atk:0, def:0 };
 
-  const flatKeys = ['hp','atk','def','spd','crit','critdmg'];
+  const flatKeys = ['hp','atk','def','evade','crit','critdmg'];
   for (const k of flatKeys){
     if (mods[k + '_flat']) flat[k] += mods[k + '_flat'];
   }
-  for (const k of ['hp','atk','def','spd']){
+  // evade는 trigger mod 'evade'로도 합산 (특수효과/affix 호환)
+  if (mods.evade) flat.evade += mods.evade;
+  for (const k of ['hp','atk','def']){
     if (mods[k + '_pct']) pct[k] += mods[k + '_pct'];
   }
 
-  // 광폭화 (low_hp_atk) — 실제 max hp 기준 (base.hp 아님)
-  // pct.hp가 적용된 후의 max를 계산해서 비교해야 정확함
+  // 광폭화 (low_hp_atk) — 실제 max hp 기준
   const provisionalMaxHp = Math.floor((base.hp + flat.hp) * (1 + pct.hp / 100));
   if (mods.low_hp_atk && player.hp <= provisionalMaxHp * 0.5){
     pct.atk += mods.low_hp_atk;
@@ -1216,10 +1217,11 @@ function computeStats(player){
 
   const out = {};
   for (const k of flatKeys){
-    out[k] = base[k] + flat[k];
+    out[k] = (base[k] || 0) + flat[k];
     if (pct[k]) out[k] = Math.floor(out[k] * (1 + pct[k] / 100));
   }
   out.crit = clamp(out.crit, 0, 100);
+  out.evade = clamp(out.evade, 0, 80); // 회피율 캡 80%
   return out;
 }
 
@@ -1235,7 +1237,7 @@ const SAVE_KEY = 'roguelite-100f-v1';
 
 function newGame(){
   const player = {
-    base: { hp:100, atk:12, def:4, spd:10, crit:5, critdmg:150 },
+    base: { hp:100, atk:12, def:4, evade:0, crit:5, critdmg:150 },
     equipment: { weapon:null, armor:null, helmet:null, shield:null, amulet:null },
     perks: [],
     hp: 100,
@@ -1249,11 +1251,16 @@ function newGame(){
     pendingReward: null,
     won: false,
     lost: false,
-    rewardsTaken: 0
+    rewardsTaken: 0,
+    canSkip: false,
+    skipping: false
   };
 }
 
 const TURN_INTERVAL_MS = 480;
+const SKIP_INTERVAL_MS = 25;
+const SKIP_BUTTON_DELAY_MS = 3000;
+let _skipTimer = null;
 
 let G = newGame();
 
@@ -1287,10 +1294,33 @@ function startBattle(){
 }
 
 function beginCombat(){
+  if (G.canSkip){ activateSkip(); return; }
   if (!G.battle.active || G.battle.started || G.pendingReward || G.lost || G.won) return;
   G.battle.started = true;
+  G.canSkip = false;
+  G.skipping = false;
   renderActions();
   attack();
+  // 3초 후 스킵 버튼 활성화
+  if (_skipTimer) clearTimeout(_skipTimer);
+  _skipTimer = setTimeout(() => {
+    if (G.battle.started && G.battle.active && !G.pendingReward && !G.lost && !G.won){
+      G.canSkip = true;
+      renderActions();
+    }
+  }, SKIP_BUTTON_DELAY_MS);
+}
+
+function activateSkip(){
+  G.skipping = true;
+  G.canSkip = false;
+  renderActions();
+}
+
+function clearSkipState(){
+  if (_skipTimer){ clearTimeout(_skipTimer); _skipTimer = null; }
+  G.canSkip = false;
+  G.skipping = false;
 }
 
 function calcOutgoingDamage(attacker, defender, opts={}){
@@ -1457,9 +1487,9 @@ function attack(){
   }
 
   if (enemyActed){
-    // 회피
-    if (mods.evade && Math.random() * 100 < mods.evade){
-      log('회피!', 'miss');
+    // 회피 (player evade 합산값 사용)
+    if (ps.evade && Math.random() * 100 < ps.evade){
+      log(`회피! (${ps.evade}%)`, 'miss');
     } else {
       const ed = calcOutgoingDamage(
         { atk: e.atk, crit: e.crit, critdmg: e.critdmg },
@@ -1516,12 +1546,13 @@ function attack(){
 
   // 전투 시작된 상태이면 적 죽거나 플레이어 죽을 때까지 자동 진행
   if (G.battle.started && G.battle.active && !G.pendingReward){
-    setTimeout(attack, TURN_INTERVAL_MS);
+    setTimeout(attack, G.skipping ? SKIP_INTERVAL_MS : TURN_INTERVAL_MS);
   }
 }
 
 function endBattle(playerWon){
   G.battle.active = false;
+  clearSkipState();
   if (playerWon){
     log(`>> ${G.battle.enemy.name} 처치!`, 'reward');
     if (G.stage >= 100){
@@ -1643,7 +1674,8 @@ function renderPlayer(){
     const it = eq[s.id];
     if (it){
       const c = RARITY_BY_ID[it.rarity].color;
-      return `<div class="eq-row"><span class="slot">${s.icon} ${s.name}</span><span class="item" style="color:${c}">${it.name}</span></div>`;
+      const lv = it.level || it.stage || 1;
+      return `<div class="eq-row"><span class="slot">${s.icon} ${s.name}</span><span class="item" style="color:${c}">Lv.${lv} ${it.name}</span></div>`;
     }
     return `<div class="eq-row"><span class="slot">${s.icon} ${s.name}</span><span class="item empty">없음</span></div>`;
   }).join('');
@@ -1660,7 +1692,7 @@ function renderPlayer(){
       }
     }
     // 정렬: stat 계열 먼저, 그 다음 trigger
-    const STAT_ORDER = ['atk_pct','atk_flat','hp_pct','hp_flat','def_pct','def_flat','spd_pct','spd_flat','crit_flat','critdmg_flat'];
+    const STAT_ORDER = ['atk_pct','atk_flat','hp_pct','hp_flat','def_pct','def_flat','evade_flat','crit_flat','critdmg_flat'];
     const TRIG_ORDER = ['lifesteal','crit_lifesteal','doublestrike','pierce','execute','bleed','thorns','evade','stagger','regen_flat','regen_pct','firstblood','cleave','low_hp_atk','cycle3_dmg_pct','dmg_reduction','true_dmg_pct','always_crit','cycle4_freeze','revive_count','revive_pct'];
     const order = [...STAT_ORDER, ...TRIG_ORDER];
     const keys = Object.keys(perkSum).sort((a,b) => {
@@ -1677,7 +1709,7 @@ function renderPlayer(){
     <span class="lbl">체력</span><span class="val">${hp} / ${max}</span>
     <span class="lbl">공격력</span><span class="val">${ps.atk}</span>
     <span class="lbl">방어력</span><span class="val">${ps.def}</span>
-    <span class="lbl">속도</span><span class="val">${ps.spd}</span>
+    <span class="lbl">회피율</span><span class="val">${ps.evade}%</span>
     <span class="lbl">치명타율</span><span class="val">${ps.crit}%</span>
     <span class="lbl">치명타뎀</span><span class="val">${ps.critdmg}%</span>
   `;
@@ -1715,7 +1747,7 @@ function renderEnemy(){
     <div class="stats">
       <span class="lbl">공격력</span><span class="val">${e.atk}</span>
       <span class="lbl">방어력</span><span class="val">${e.def}</span>
-      <span class="lbl">속도</span><span class="val">${e.spd}</span>
+      <span class="lbl">회피율</span><span class="val">${e.evade||0}%</span>
       <span class="lbl">치명타율</span><span class="val">${e.crit}%</span>
     </div>
   `;
@@ -1724,15 +1756,29 @@ function renderEnemy(){
 function renderActions(){
   const btn = $('btn-attack');
   if (!btn) return;
-  // 활성: 전투 중 + 아직 시작 전 + 보상/사망/승리 아님
+  const inBattle = G.battle.started && G.battle.active && !G.pendingReward;
   const canAttack = G.battle.active && !G.battle.started && !G.pendingReward && !G.lost && !G.won;
-  btn.disabled = !canAttack;
-  if (G.battle.started && G.battle.active && !G.pendingReward){
-    btn.textContent = '⏳ 전 투 중 ...';
-  } else if (G.pendingReward){
+
+  if (G.pendingReward){
     btn.textContent = '※ 보 상 선 택 ※';
+    btn.disabled = true;
+    btn.classList.remove('skip-mode');
+  } else if (inBattle && G.skipping){
+    btn.textContent = '⏩ 스 킵 진 행 중 ...';
+    btn.disabled = true;
+    btn.classList.add('skip-mode');
+  } else if (inBattle && G.canSkip){
+    btn.textContent = '⏩  스  킵   [SPACE]';
+    btn.disabled = false;
+    btn.classList.add('skip-mode');
+  } else if (inBattle){
+    btn.textContent = '⏳ 전 투 중 ...';
+    btn.disabled = true;
+    btn.classList.remove('skip-mode');
   } else {
     btn.textContent = '⚔  공  격   [SPACE]';
+    btn.disabled = !canAttack;
+    btn.classList.remove('skip-mode');
   }
 }
 
@@ -1823,10 +1869,11 @@ function showRewardModal(){
               const sign = d.diff > 0 ? '+' : '';
               return `<div class="diff-row"><span class="lbl">${modShortLabel(d.id)}</span><span class="val ${cls}">${arrow} ${sign}${d.diff}</span></div>`;
             }).join('');
+        const oldLv = old.level || old.stage || 1;
         compareHtml = `
           <div class="compare">
             <div class="head">↺ 교체 (현재 장착 중)</div>
-            <div class="replace-name" style="color:${RARITY_BY_ID[old.rarity].color}">[${RARITY_BY_ID[old.rarity].name}] ${old.name}</div>
+            <div class="replace-name" style="color:${RARITY_BY_ID[old.rarity].color}">[${RARITY_BY_ID[old.rarity].name} Lv.${oldLv}] ${old.name}</div>
             ${diffRows}
           </div>`;
       } else {
@@ -1918,11 +1965,12 @@ function showInventoryModal(){
     }
     const c = RARITY_BY_ID[it.rarity].color;
     const opts = it.options.map(o => `<li class="${o.kind}">${o.label}${o.desc?` <span style="color:var(--dim)">(${o.desc})</span>`:''}</li>`).join('');
+    const lv = it.level || it.stage || 1;
     return `
       <div class="inv-row">
         <div class="row-head">
           <span class="row-name" style="color:${c}">${s.icon} ${s.name}: ${it.name}</span>
-          <span class="row-tag" style="color:${c}">[${RARITY_BY_ID[it.rarity].name}]</span>
+          <span class="row-tag" style="color:${c}">[${RARITY_BY_ID[it.rarity].name} Lv.${lv}]</span>
         </div>
         <ul class="row-opts">${opts}</ul>
       </div>`;
