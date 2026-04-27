@@ -2215,7 +2215,7 @@ function modShortLabel(id){
 function showRewardModal(){
   const rs = G.pendingReward;
   const cards = rs.map((r, idx) => {
-    const rDef = RARITY_BY_ID[r.rarity];
+    const rDef = RARITY_BY_ID[r.rarity] || { color:'#ffae5c', name: r.rarity || '???' };
     if (r.type === 'item'){
       const slotDef = SLOT_BY_ID[r.slot];
       const slotName = slotDef.name;
