@@ -376,6 +376,7 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
 .choice .options li.special{color:#ffd23f}
 .choice .options li.basic{color:#fff}
 .choice .options li.primary{color:var(--accent); font-weight:bold}
+.choice .options li.negative{color:#ff6464; font-weight:bold}
 .choice .compare{
   font-size:11px; margin-top:8px;
   padding:8px; background:rgba(0,0,0,.4); border:1px dashed var(--border);
@@ -882,6 +883,16 @@ const BOSS_DROPS = {
   ]
 };
 
+// 보스템 마이너스 옵션 풀 — 강한 효과의 trade-off
+const BOSS_NEGATIVES = [
+  { id:'atk_pct',      label:(v)=>`공격력 강화 ${v}%`,   range:[-15, -5] },
+  { id:'hp_pct',       label:(v)=>`체력 강화 ${v}%`,     range:[-15, -5] },
+  { id:'def_pct',      label:(v)=>`방어력 강화 ${v}%`,   range:[-20, -8] },
+  { id:'crit_flat',    label:(v)=>`치명타율 ${v}%`,      range:[-8, -3]  },
+  { id:'critdmg_flat', label:(v)=>`치명타뎀 ${v}%`,      range:[-30, -10]},
+  { id:'evade_flat',   label:(v)=>`회피율 ${v}%`,        range:[-8, -3]  }
+];
+
 function genBossItem(stage){
   const pool = BOSS_DROPS[stage];
   if (!pool || !pool.length) return null;
@@ -911,6 +922,11 @@ function genBossItem(stage){
       });
     }
   }
+  // 마이너스 옵션 1개 부착 (저주)
+  const neg = choice(BOSS_NEGATIVES);
+  const negVal = rand(neg.range[0], neg.range[1]);
+  item.mods.push({ id: neg.id, value: negVal });
+  item.options.push({ kind:'negative', label: `※ ${neg.label(negVal)}` });
   return item;
 }
 
@@ -2339,7 +2355,7 @@ function showRewardModal(){
       const slotName = slotDef.name;
       const isBoss = r.isBossItem;
       const optHtml = r.options.map(o => {
-        const cls = o.kind === 'special' ? 'special' : (o.kind === 'primary' ? 'primary' : 'basic');
+        const cls = o.kind === 'special' ? 'special' : (o.kind === 'primary' ? 'primary' : (o.kind === 'negative' ? 'negative' : 'basic'));
         const tip = o.desc ? ` title="${o.desc}"` : '';
         return `<li class="${cls}"${tip}>${o.label}${o.desc ? ' ✦' : ''}</li>`;
       }).join('');
