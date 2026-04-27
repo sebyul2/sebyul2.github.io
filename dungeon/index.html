@@ -1374,8 +1374,29 @@ function computeStats(player){
     if (pct[k]) out[k] = Math.floor(out[k] * (1 + pct[k] / 100));
   }
   out.crit = clamp(out.crit, 0, 100);
-  out.evade = clamp(out.evade, 0, 80); // 회피율 캡 80%
+  // 회피율 soft cap — 50까지 1:1, 그 이상은 단계적 diminishing returns
+  out.evade = softCapEvade(out.evade);
   return out;
+}
+
+function softCapEvade(raw){
+  if (raw <= 0) return 0;
+  let r = raw, sum = 0;
+  // 구간별 환산 (raw → effective)
+  const SEG = [
+    { width: 50,       ratio: 1.00 }, // 0~50: 1:1
+    { width: 30,       ratio: 0.50 }, // 50~80: 50%
+    { width: 40,       ratio: 0.20 }, // 80~120: 20%
+    { width: 80,       ratio: 0.05 }, // 120~200: 5%
+    { width: Infinity, ratio: 0.01 }  // 200+: 1%
+  ];
+  for (const seg of SEG){
+    if (r <= 0) break;
+    const take = Math.min(r, seg.width);
+    sum += take * seg.ratio;
+    r -= take;
+  }
+  return Math.min(95, Math.round(sum));
 }
 
 function maxHp(player){
