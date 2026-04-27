@@ -942,7 +942,10 @@ const SPECIAL_AFFIXES = [
   // 더 특수한 + 효과
   { id:'crit_burst',    name:'치명타 폭발',   range:[5,12],  desc:(v)=>`치명타 시 적 최대 HP의 ${v}% 진실 데미지 추가` },
   { id:'omen_5',        name:'운명의 다섯',   range:[1,1],   desc:'매 5번째 자기 공격이 적 즉시 처형' },
-  { id:'first_executor',name:'선공의 처형',   range:[15,30], desc:(v)=>`전투 첫 공격 시 적 최대 HP의 ${v}% 진실 데미지 추가` }
+  { id:'first_executor',name:'선공의 처형',   range:[15,30], desc:(v)=>`전투 첫 공격 시 적 최대 HP의 ${v}% 진실 데미지 추가` },
+  { id:'cycle5_truedmg',name:'재앙의 폭풍',   range:[3,8],   desc:(v)=>`매 5턴마다 적 최대 HP의 ${v}% 진실 데미지` },
+  { id:'chain_doublestrike',name:'연쇄 추가타', range:[10,25], desc:(v)=>`추가타 발동 시 ${v}% 확률로 추가타 한 번 더 (최대 5번 체인)` },
+  { id:'low_hp_evade',  name:'사선의 본능',   range:[10,25], desc:(v)=>`HP 30% 이하 시 회피 +${v}%` }
 ];
 
 // 누적 perk (특수효과) — 전체 너프 적용
@@ -1152,7 +1155,7 @@ const BOSS_DROPS = {
     { name:'심연의 갑주',     slot:'armor',  primaryVal:62,  extras:[{id:'hp_flat',v:250},{id:'low_hp_dr',v:30},{id:'thorns',v:35}] },
     { name:'왕의 관',         slot:'helmet', primaryVal:320, extras:[{id:'crit_flat',v:20},{id:'critdmg_flat',v:100},{id:'lifesteal',v:15}] },
     { name:'성스러운 방패',   slot:'shield', primaryVal:50,  extras:[{id:'dmg_reduction',v:25},{id:'first_hit_block',v:1},{id:'cycle5_freeze',v:1}] },
-    { name:'용의 심장',       slot:'amulet', primaryVal:40,  extras:[{id:'hp_pct',v:25},{id:'atk_pct',v:20}] },
+    { name:'용의 심장',       slot:'amulet', primaryVal:40,  extras:[{id:'hp_pct',v:25},{id:'cycle5_truedmg',v:5}] },
     { name:'어둠의 인장',     slot:'amulet', primaryVal:36,  extras:[{id:'doublestrike',v:30},{id:'crit_chain',v:1}] }
   ],
   60: [
@@ -1160,19 +1163,19 @@ const BOSS_DROPS = {
     { name:'룬마스터의 갑옷', slot:'armor',  primaryVal:78,  extras:[{id:'hp_flat',v:350},{id:'regen_pct',v:5},{id:'evade_flat',v:10}] },
     { name:'드래곤 헬름',     slot:'helmet', primaryVal:420, extras:[{id:'crit_flat',v:25},{id:'evade_flat',v:12},{id:'firstblood',v:100}] },
     { name:'영원의 방패',     slot:'shield', primaryVal:62,  extras:[{id:'dmg_reduction',v:30},{id:'thorns',v:50},{id:'flat_dr',v:5}] },
-    { name:'시간의 부적',     slot:'amulet', primaryVal:48,  extras:[{id:'cycle5_freeze',v:1},{id:'evade_flat',v:15}] },
+    { name:'시간의 부적',     slot:'amulet', primaryVal:48,  extras:[{id:'cycle5_freeze',v:1},{id:'low_hp_evade',v:20}] },
     { name:'학살자의 인장',   slot:'amulet', primaryVal:42,  extras:[{id:'execute',v:12},{id:'pierce',v:40},{id:'low_hp_atk',v:50}] }
   ],
   70: [
     { name:'심연의 대검',     slot:'weapon', primaryVal:165, extras:[{id:'critdmg_flat',v:150},{id:'crit_flat',v:25},{id:'pierce',v:35}] },
     { name:'타이탄의 갑옷',   slot:'armor',  primaryVal:95,  extras:[{id:'hp_flat',v:480},{id:'def_pct',v:30},{id:'low_hp_dr',v:50}] },
-    { name:'천공의 관',       slot:'helmet', primaryVal:540, extras:[{id:'crit_flat',v:30},{id:'critdmg_flat',v:120},{id:'evade_flat',v:15}] },
+    { name:'천공의 관',       slot:'helmet', primaryVal:540, extras:[{id:'crit_flat',v:30},{id:'first_executor',v:25},{id:'evade_flat',v:15}] },
     { name:'무적의 방벽',     slot:'shield', primaryVal:75,  extras:[{id:'dmg_reduction',v:35},{id:'cycle7_invuln',v:1},{id:'first_hit_block',v:1}] },
     { name:'영혼 수확자',     slot:'amulet', primaryVal:56,  extras:[{id:'on_kill_atk_perm',v:1},{id:'on_kill_max_hp',v:5}] },
     { name:'폭주의 인장',     slot:'amulet', primaryVal:48,  extras:[{id:'rage_per_turn',v:5},{id:'low_hp_crit',v:50}] }
   ],
   80: [
-    { name:'우주의 검',       slot:'weapon', primaryVal:210, extras:[{id:'doublestrike',v:45},{id:'true_dmg_per_hit_pct',v:5},{id:'lifesteal',v:30}] },
+    { name:'우주의 검',       slot:'weapon', primaryVal:210, extras:[{id:'doublestrike',v:45},{id:'chain_doublestrike',v:25},{id:'lifesteal',v:25}] },
     { name:'심연의 흑갑',     slot:'armor',  primaryVal:115, extras:[{id:'hp_pct',v:40},{id:'def_pct',v:40},{id:'thorns',v:60}] },
     { name:'영원의 왕관',     slot:'helmet', primaryVal:680, extras:[{id:'crit_flat',v:35},{id:'lifesteal',v:25},{id:'crit_lifesteal',v:25}] },
     { name:'창세의 방패',     slot:'shield', primaryVal:90,  extras:[{id:'dmg_reduction',v:40},{id:'cycle5_freeze',v:1},{id:'flat_dr',v:8}] },
@@ -1189,7 +1192,7 @@ const BOSS_DROPS = {
   ],
   100: [
     { name:'창세의 검',       slot:'weapon', primaryVal:330, extras:[{id:'always_crit',v:1},{id:'pierce',v:50},{id:'true_dmg_per_hit_pct',v:10}] },
-    { name:'무한의 갑주',     slot:'armor',  primaryVal:165, extras:[{id:'hp_pct',v:60},{id:'dmg_reduction',v:30},{id:'flat_dr',v:15}] },
+    { name:'무한의 갑주',     slot:'armor',  primaryVal:165, extras:[{id:'hp_pct',v:60},{id:'cycle5_truedmg',v:7},{id:'low_hp_evade',v:25}] },
     { name:'신의 관',         slot:'helmet', primaryVal:1000,extras:[{id:'crit_flat',v:50},{id:'critdmg_flat',v:200},{id:'lifesteal',v:40}] },
     { name:'태초의 방벽',     slot:'shield', primaryVal:135, extras:[{id:'dmg_reduction',v:50},{id:'first_hit_block',v:1},{id:'revive_count',v:1},{id:'revive_pct',v:80}] },
     { name:'심연황의 인장',   slot:'amulet', primaryVal:95,  extras:[{id:'execute',v:25},{id:'crit_chain',v:1},{id:'true_dmg_per_hit_pct',v:8}] },
@@ -1656,12 +1659,12 @@ function genEnemy(stage){
   const isFinal = stage === 100;
 
   // levelScale 동일 곡선에 비율 적용.
-  // 1~5층: 약간 상향 (1.10), 6층부터 가속(+0.013/층) — 기존(0.009)의 약 1.45배.
+  // 1~10층: 평탄 (1.0), 11층부터 가속(+0.013/층). 초반엔 사용자가 무난히 진입.
   const ls = levelScale(stage);
-  const baseMult = 1.10 + Math.max(0, stage - 5) * 0.013;
+  const baseMult = stage <= 10 ? 1.0 : 1.0 + (stage - 10) * 0.013;
   const eScale = ls * baseMult;
   const baseHp  = Math.round(40  * eScale);
-  const baseAtk = Math.round(5.0 * eScale);
+  const baseAtk = Math.round(3.5 * eScale);
   const baseDef = Math.round(0.85 * eScale);
   // 적의 방어 무시율: 후반에 player가 def 누적해도 적 데미지가 들어가도록.
   const enemyPierce = clamp(Math.floor(stage * 0.2), 0, 40);
@@ -1801,7 +1804,7 @@ function genItem(slot, rarity, stage){
       usedSp.add(sp.id);
       const val = rollSpecialValue(sp, rarity);
       item.mods.push({ id: sp.id, value: val });
-      const _pctSp = ['lifesteal','thorns','doublestrike','evade','execute','bleed','pierce','crit_lifesteal','firstblood','stagger','crit_burst','first_executor'];
+      const _pctSp = ['lifesteal','thorns','doublestrike','evade','execute','bleed','pierce','crit_lifesteal','firstblood','stagger','crit_burst','first_executor','cycle5_truedmg','chain_doublestrike','low_hp_evade'];
       const _onSp = ['omen_5'];
       const _suf = _pctSp.includes(sp.id) ? '%' : '';
       const _label = _onSp.includes(sp.id) ? sp.name : `${sp.name} ${val}${_suf}`;
@@ -1885,6 +1888,9 @@ function modExplain(id){
     stagger: 'N% 확률로 적 경직 (1턴 행동 무효)',
     cleave: '매 공격 시 적 방어력 영구 감소',
     evade_flat: '회피율 추가 (50% 이상부터 효율 둔화)',
+    cycle5_truedmg: '매 5턴마다 적 최대 HP 비례 진실 데미지',
+    chain_doublestrike: '추가타가 발동되면 그 다음에도 확률로 또 추가타 (체인)',
+    low_hp_evade: 'HP가 낮을 때 회피 보너스 (HP 30% 이하)',
     loot_choices:    '보상 시 선택지 칸 수 추가 (최대 +2)',
     loot_upgrade:    '보상 한 칸이 한 단계 위 등급으로 갱신될 확률',
     loot_extra:      '보상이 +1 추가 등장할 확률',
@@ -1952,6 +1958,9 @@ function describeMod(m){
     case 'crit_burst': return `치명타 폭발 ${m.value}%`;
     case 'omen_5': return `매 5번째 공격 처형`;
     case 'first_executor': return `선공의 처형 ${m.value}%`;
+    case 'cycle5_truedmg': return `재앙의 폭풍 ${m.value}%/5턴`;
+    case 'chain_doublestrike': return `연쇄 추가타 ${m.value}%`;
+    case 'low_hp_evade': return `위기 회피 +${m.value}% (HP↓30)`;
     case 'curse_glass_cannon': return `받는 데미지 +${m.value}%`;
     case 'curse_blood_offering': return `매 공격 자기 HP -${m.value}%`;
     case 'curse_revenge': return `보복 반사 ${m.value}%`;
@@ -2002,6 +2011,10 @@ function computeStats(player){
   const provisionalMaxHp = Math.floor((base.hp + flat.hp) * (1 + pct.hp / 100));
   if (mods.low_hp_atk && player.hp <= provisionalMaxHp * 0.5){
     pct.atk += mods.low_hp_atk;
+  }
+  // 사선의 본능 (low_hp_evade) — HP 30% 이하일 때 회피 추가
+  if (mods.low_hp_evade && player.hp <= provisionalMaxHp * 0.3){
+    flat.evade += mods.low_hp_evade;
   }
 
   const out = {};
@@ -2263,6 +2276,14 @@ function attack(){
     log(`성장의 저주: 적 HP +${heal}`, 'effect');
     showDamage('enemy', heal, 'heal');
   }
+  // 재앙의 폭풍 — 매 5턴 적 max HP 진실 데미지
+  if (mods.cycle5_truedmg && G.battle.turn > 0 && G.battle.turn % 5 === 0){
+    const td = Math.max(1, Math.floor(e.maxHp * mods.cycle5_truedmg / 100));
+    e.hp -= td;
+    log(`재앙의 폭풍! 진실 데미지 ${td}`, 'effect');
+    showDamage('enemy', td, 'crit');
+    if (e.hp <= 0) return endBattle(true);
+  }
   // 저주: 운명의 시계 — 시간 초과 시 자기 max HP -50%
   if (mods.curse_doom_clock && G.battle.turn >= mods.curse_doom_clock && !G.battle.doomTriggered){
     G.battle.doomTriggered = true;
@@ -2452,6 +2473,21 @@ function attack(){
       if (heal2 > 0) healPlayer(heal2);
     }
     if (e.hp <= 0) return endBattle(true);
+    // 연쇄 추가타 — 추가타 발동 후 체인
+    let chainCount = 1;
+    while (chainCount < 5 && mods.chain_doublestrike && Math.random() * 100 < mods.chain_doublestrike){
+      chainCount++;
+      let { dmg: dn, isCrit: icn } = calcOutgoingDamage(attackerStats, e, opts2);
+      if (mods.execute && e.hp <= e.maxHp * mods.execute / 100) dn = e.hp;
+      e.hp -= dn;
+      log(`연쇄 추가타 (${chainCount})! ${dn} 데미지${icn?' (치명타!)':''}`, icn?'crit':'');
+      showDamage('enemy', dn, icn ? 'crit' : '');
+      if (mods.lifesteal){
+        const hl = fractionalApply('lifesteal', dn * mods.lifesteal / 100);
+        if (hl > 0) healPlayer(hl);
+      }
+      if (e.hp <= 0) return endBattle(true);
+    }
   }
 
   G.battle.firstStrike = false;
@@ -2824,7 +2860,8 @@ function modIcon(id){
     loot_choices:'🎁', loot_upgrade:'🍀', loot_extra:'🎲',
     loot_floor:'⭐', loot_boss_drop:'👹', loot_upgrade_all:'✨',
     loot_kill_heal:'💰',
-    crit_burst:'💢', omen_5:'5️⃣', first_executor:'🚀'
+    crit_burst:'💢', omen_5:'5️⃣', first_executor:'🚀',
+    cycle5_truedmg:'🌪', chain_doublestrike:'⛓', low_hp_evade:'🌫'
   };
   return m[id] || '✦';
 }
@@ -2844,7 +2881,7 @@ function modShort(id, v){
     'pierce','crit_lifesteal','firstblood','stagger',
     'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct',
     'loot_upgrade','loot_extra','loot_boss_drop','loot_kill_heal',
-    'crit_burst','first_executor',
+    'crit_burst','first_executor','cycle5_truedmg','chain_doublestrike','low_hp_evade',
     'curse_glass_cannon','curse_blood_offering','curse_revenge'
   ]);
   return PCT.has(id) ? `+${v}%` : `+${v}`;
@@ -3102,7 +3139,9 @@ function modShortLabel(id){
     curse_revenge:'보복%', curse_doom_clock:'운명의 시계',
     curse_swap_atk_def:'공방 교환',
     crit_burst:'치명타 폭발%', omen_5:'운명의 다섯',
-    first_executor:'선공의 처형%'
+    first_executor:'선공의 처형%',
+    cycle5_truedmg:'재앙의 폭풍%', chain_doublestrike:'연쇄 추가타%',
+    low_hp_evade:'위기 회피%'
   };
   return map[id] || id;
 }
