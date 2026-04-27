@@ -2166,10 +2166,14 @@ function log(text, kind=''){
 
 function showModal(html){
   $('modal').innerHTML = html;
+  $('modal-bg').classList.remove('peek'); // peek 잔재 제거
   $('modal-bg').classList.add('show');
+  const pr = $('peek-restore'); if (pr) pr.style.display = 'none';
 }
 function hideModal(){
   $('modal-bg').classList.remove('show');
+  $('modal-bg').classList.remove('peek');
+  const pr = $('peek-restore'); if (pr) pr.style.display = 'none';
 }
 
 function sumModsForItem(item){
