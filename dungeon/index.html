@@ -751,7 +751,7 @@ const Bgm = (() => {
   };
   // 판타지 BGM — A minor, verse/pre/chorus/outro 구조 (총 14마디 × 4박)
   // 형식: [note, duration_in_quarters]
-  const QUARTER = 0.45; // BPM 133
+  let QUARTER = 0.45; // 일반 BPM 133, 보스에선 더 빠르게 변경
   const MELODY = [
     // === Verse (4마디) — 잔잔한 호흡, 긴 sustain ===
     ['A4', 1.0], ['C5', 1.0], ['E5', 2.0],                     // 마디1 Am
@@ -791,6 +791,36 @@ const Bgm = (() => {
     ['A3', 4.0],                       // 마디12
     ['A3', 4.0],                       // 마디13
     ['A3', 4.0]                        // 마디14
+  ];
+
+  // === 보스 BGM 변주 — 같은 모티프, 빠른 템포 + staccato + 어두운 변형 ===
+  const BOSS_MELODY = [
+    // 마디1 — 다급한 staccato hook (verse 모티프 변주)
+    ['A4', 0.5], ['_', 0.25], ['A4', 0.25], ['C5', 0.5], ['_', 0.25], ['B4', 0.25], ['A4', 1.0], ['G4', 1.0],
+    // 마디2
+    ['F4', 0.5], ['_', 0.25], ['F4', 0.25], ['G4', 0.5], ['_', 0.25], ['F4', 0.25], ['E4', 1.0], ['_', 1.0],
+    // 마디3 — 텐션 빌드
+    ['A4', 0.25], ['B4', 0.25], ['C5', 0.5], ['D5', 0.5], ['E5', 0.5], ['D5', 0.5], ['C5', 0.5], ['B4', 1.0],
+    // 마디4
+    ['A4', 0.5], ['_', 0.5], ['G4', 0.5], ['_', 0.5], ['A4', 1.5], ['_', 0.5],
+    // 마디5 — 새 모티프, 위로 점프
+    ['E5', 0.5], ['_', 0.25], ['E5', 0.25], ['F5', 0.5], ['_', 0.25], ['E5', 0.25], ['D5', 1.0], ['C5', 1.0],
+    // 마디6 — 하행
+    ['B4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 0.5], ['E4', 1.0], ['_', 1.0],
+    // 마디7 — climax
+    ['A4', 0.25], ['B4', 0.25], ['C5', 0.5], ['E5', 0.5], ['_', 0.25], ['E5', 0.25], ['A5', 1.0], ['G5', 1.0],
+    // 마디8 — resolve
+    ['F5', 0.5], ['E5', 0.5], ['D5', 0.5], ['C5', 0.5], ['A4', 1.5], ['_', 0.5]
+  ];
+  const BOSS_BASS = [
+    ['A3', 1.0], ['A3', 1.0], ['A3', 1.0], ['E3', 1.0],   // 마디1 — 펄스
+    ['F3', 1.0], ['F3', 1.0], ['C4', 1.0], ['F3', 1.0],   // 마디2
+    ['G3', 1.0], ['G3', 1.0], ['D4', 1.0], ['G3', 1.0],   // 마디3
+    ['A3', 1.0], ['E3', 1.0], ['A3', 1.0], ['E3', 1.0],   // 마디4
+    ['F3', 1.0], ['F3', 1.0], ['C4', 1.0], ['F3', 1.0],   // 마디5
+    ['C4', 1.0], ['G3', 1.0], ['C4', 1.0], ['G3', 1.0],   // 마디6
+    ['A3', 1.0], ['E3', 1.0], ['F3', 1.0], ['G3', 1.0],   // 마디7
+    ['A3', 1.0], ['A3', 1.0], ['E3', 1.0], ['E3', 1.0]    // 마디8
   ];
   function getCtx(){
     if (!ctx){
@@ -850,29 +880,48 @@ const Bgm = (() => {
     }
     return t;
   }
+  let currentVariant = 'normal';
   function scheduleLoop(){
     if (!playing) return;
     const c = getCtx(); if (!c) return;
     const start = Math.max(c.currentTime + 0.05, nextLoopAt);
-    playTrack(MELODY, start, 'triangle', 0.18);
-    playTrack(BASS,   start, 'sine',     0.10, 'pluck');
-    const len = totalDuration(MELODY);
-    nextLoopAt = start + len;
-    loopHandle = setTimeout(scheduleLoop, (len - 0.25) * 1000);
+    if (currentVariant === 'boss'){
+      QUARTER = 0.30; // 보스 빠른 템포 (BPM 200)
+      playTrack(BOSS_MELODY, start, 'square',   0.15, 'pluck'); // staccato square로 절박감
+      playTrack(BOSS_BASS,   start, 'triangle', 0.10, 'pluck');
+      const len = totalDuration(BOSS_MELODY);
+      nextLoopAt = start + len;
+      loopHandle = setTimeout(scheduleLoop, (len - 0.20) * 1000);
+    } else {
+      QUARTER = 0.45;
+      playTrack(MELODY, start, 'triangle', 0.18);
+      playTrack(BASS,   start, 'sine',     0.10, 'pluck');
+      const len = totalDuration(MELODY);
+      nextLoopAt = start + len;
+      loopHandle = setTimeout(scheduleLoop, (len - 0.25) * 1000);
+    }
   }
   return {
-    start(){
-      if (playing) return;
+    start(variant){
+      const v = variant || 'normal';
+      if (playing && currentVariant === v) return;
+      // 변주 변경 시: 기존 정지 → 짧은 페이드 후 새 시작
+      const wasPlaying = playing;
+      this.stop();
+      currentVariant = v;
+      if (muted) return;
       const c = getCtx(); if (!c) return;
       if (c.state === 'suspended') c.resume();
-      // master gain 즉시 정상 음량으로
-      if (master){
-        master.gain.cancelScheduledValues(c.currentTime);
-        master.gain.setValueAtTime(muted ? 0 : 0.40, c.currentTime);
-      }
-      playing = true;
-      nextLoopAt = 0;
-      scheduleLoop();
+      const startDelay = wasPlaying ? 0.10 : 0;
+      setTimeout(() => {
+        if (master){
+          master.gain.cancelScheduledValues(c.currentTime);
+          master.gain.setValueAtTime(muted ? 0 : 0.40, c.currentTime);
+        }
+        playing = true;
+        nextLoopAt = 0;
+        scheduleLoop();
+      }, startDelay * 1000);
     },
     stop(){
       playing = false;
@@ -2362,6 +2411,10 @@ function startBattle(){
   G.player.cycleCounters = { thunder:0, sacred:0, freeze:0, c5:0, c7:0 };
   log(`-- 스테이지 ${G.stage} -- ${G.battle.enemy.name} 등장! [공격]을 눌러 시작.`, 'system');
   if (G.battle.enemy.isBoss) log('※ 보스 ※', 'system');
+  // BGM 변주 — 보스면 boss variant, 아니면 normal
+  if (typeof Bgm !== 'undefined' && !Bgm.isMuted()){
+    Bgm.start(G.battle.enemy.isBoss ? 'boss' : 'normal');
+  }
   saveGame();
   render();
 }
