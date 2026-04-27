@@ -2514,6 +2514,17 @@ function init(){
   if (saved && !saved.lost && !saved.won && saved.stage){
     // 새로고침 시 자동으로 이어가기 (확인 팝업 없음)
     G = saved;
+    // 옛 저장 데이터 마이그레이션 — 새 필드 채워넣기
+    G.player = G.player || {};
+    G.player.bonusAtk = G.player.bonusAtk || 0;
+    G.player.bonusMaxHp = G.player.bonusMaxHp || 0;
+    G.player.nextEnemyHpReduction = G.player.nextEnemyHpReduction || 0;
+    G.player.revives_used = G.player.revives_used || 0;
+    G.player.cycleCounters = G.player.cycleCounters || { thunder:0, sacred:0, freeze:0, c5:0, c7:0 };
+    G.battle = G.battle || { active:false, enemy:null, turn:1, firstStrike:true, started:false };
+    G.battle.rage = G.battle.rage || 0;
+    G.battle.firstHitBlocked = G.battle.firstHitBlocked || false;
+    G.battle.nextCritGuaranteed = G.battle.nextCritGuaranteed || false;
     if (!G.battle.enemy || !G.battle.active){
       startBattle();
     } else {
