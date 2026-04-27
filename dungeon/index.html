@@ -1610,8 +1610,8 @@ function generateRewards(stage){
       choices.push(genPerk(rarity, stage));
     }
   }
-  // 10% 확률: 3개 카드 중 1개에 보너스 회복 부여 (덤)
-  if (Math.random() < 0.10){
+  // 30% 확률: 3개 카드 중 1개에 보너스 회복 부여 (덤)
+  if (Math.random() < 0.30){
     const ps = computeStats(G.player);
     const pct = 0.30 + Math.random() * 0.30; // 30~60%
     const healAmt = Math.max(1, Math.floor(ps.hp * pct));
