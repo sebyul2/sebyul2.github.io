@@ -498,11 +498,11 @@ function rarityWeights(stage){
 }
 
 const SLOTS = [
-  { id:'weapon',  name:'무기', icon:'⚔', primary:'atk', range:[6,14] },
-  { id:'armor',   name:'갑옷', icon:'▣', primary:'def', range:[3,9]  },
-  { id:'helmet',  name:'투구', icon:'∩', primary:'hp',  range:[14,32] },
-  { id:'shield',  name:'방패', icon:'◇', primary:'def', range:[2,7]  },
-  { id:'amulet',  name:'악세', icon:'○', primary:'crit',range:[2,5]  }
+  { id:'weapon',  name:'무기', icon:'⚔', primary:'atk', range:[4,10] },
+  { id:'armor',   name:'갑옷', icon:'▣', primary:'def', range:[2,6]  },
+  { id:'helmet',  name:'투구', icon:'∩', primary:'hp',  range:[10,22] },
+  { id:'shield',  name:'방패', icon:'◇', primary:'def', range:[1,5]  },
+  { id:'amulet',  name:'악세', icon:'○', primary:'crit',range:[2,4]  }
 ];
 const SLOT_BY_ID = Object.fromEntries(SLOTS.map(s => [s.id, s]));
 
@@ -992,9 +992,9 @@ function genEnemy(stage){
 
   const isFinal = stage === 100;
 
-  // 스케일링: 단순 차감 공식에 맞게 (player 너프 고려해 적 성장 가속)
+  // 스케일링: 단순 차감 공식에 맞게. 초반 적 atk 베이스 ↑ + 가파른 성장
   const baseHp  = Math.floor(45 + 12 * stage + stage * stage * 0.06);
-  const baseAtk = Math.floor(5 + 1.9 * stage);
+  const baseAtk = Math.floor(7 + 2.3 * stage);
   const baseDef = Math.floor(0.8 * stage);
   const baseSpd = Math.floor(8 + 0.4 * stage);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
