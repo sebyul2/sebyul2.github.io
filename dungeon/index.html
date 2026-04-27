@@ -243,12 +243,33 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   background:linear-gradient(180deg,#3a2a1a,#1a1208);
   border-bottom:2px solid var(--border-bright);
 }
-.choice.type-item .type-banner{color:#ffd28a; border-color:#a87c3a}
-.choice.type-perk .type-banner{
-  color:#c8a8ff;
-  background:linear-gradient(180deg,#2a1a3a,#180828);
+.choice.type-item{
+  background:linear-gradient(180deg, rgba(90,60,25,.25), rgba(40,25,10,.6));
+  border-color:#a87c3a;
+}
+.choice.type-item .type-banner{
+  color:#ffd28a; border-color:#a87c3a;
+  background:linear-gradient(180deg,#4a3220,#1c1208);
+}
+.choice.type-perk{
+  background:linear-gradient(180deg, rgba(60,30,90,.25), rgba(20,10,40,.6));
   border-color:#7c5aa8;
 }
+.choice.type-perk .type-banner{
+  color:#c8a8ff;
+  background:linear-gradient(180deg,#3a1f55,#180828);
+  border-color:#7c5aa8;
+}
+.choice .big-icon{
+  text-align:center;
+  font-size:36px;
+  line-height:1;
+  margin:6px 0 4px;
+  filter:drop-shadow(0 0 8px currentColor);
+}
+.choice.type-item .big-icon{color:#ffc870}
+.choice.type-perk .big-icon{color:#c8a8ff}
+.choice.type-boss-item .big-icon{color:#ffae5c; font-size:42px}
 .choice.type-boss-item{
   border-color:#ffae5c !important;
   box-shadow:0 0 22px rgba(255,174,92,.55), inset 0 0 0 1px rgba(255,200,120,.4);
@@ -2392,10 +2413,12 @@ function showRewardModal(){
         ? `<div class="rarity" style="color:#ffae5c">★ 보스 드랍 · Lv.${r.level||r.stage||1}</div>`
         : `<div class="rarity" style="color:${rDef.color}">${rDef.name} · Lv.${r.level||r.stage||1}</div>`;
       const nameColor = isBoss ? '#ffd28a' : rDef.color;
+      const bigIcon = isBoss ? '⚜' : slotDef.icon;
       return `
         <div class="${cardCls}${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">${banner}</div>
           <div class="body">
+            <div class="big-icon">${bigIcon}</div>
             ${rarityHtml}
             <div class="slot-tag">${slotDef.icon} ${slotName} ${slotDef.icon}</div>
             <div class="name" style="color:${nameColor}">${r.name}</div>
@@ -2415,6 +2438,7 @@ function showRewardModal(){
         <div class="choice type-perk${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">✦ 특 수 효 과 ✦</div>
           <div class="body">
+            <div class="big-icon">✦</div>
             <div class="rarity" style="color:${rDef.color}">${rDef.name}</div>
             <div class="slot-tag">─ 영구 누적 ─</div>
             <div class="name" style="color:${rDef.color}">${r.name}</div>
