@@ -1143,10 +1143,10 @@ function genEnemy(stage){
 
   const isFinal = stage === 100;
 
-  // 스케일링: 단순 차감 공식에 맞게
-  const baseHp  = Math.floor(45 + 12 * stage + stage * stage * 0.06);
-  const baseAtk = Math.floor(6 + 2.0 * stage);
-  const baseDef = Math.floor(0.8 * stage);
+  // 스케일링: 단순 차감 공식. 초반(1~5층) 부드럽게 + 후반은 가파르게
+  const baseHp  = Math.floor(35 + 10 * stage + stage * stage * 0.05);
+  const baseAtk = Math.floor(4 + 1.5 * stage + (stage > 5 ? (stage - 5) * 0.3 : 0));
+  const baseDef = Math.floor(0.7 * stage);
   const baseEvade = clamp(Math.floor(stage * 0.15), 0, 25);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
 
