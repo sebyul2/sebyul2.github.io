@@ -638,7 +638,7 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
 <body>
 <div class="app">
   <div class="header">
-    <div class="stage-info">STAGE <span id="stage-num">1</span> / 100</div>
+    <div class="stage-info">층 <span id="stage-num">1</span> / 100</div>
     <div class="title">심 연 의   1 0 0 층</div>
     <div>
       <button id="btn-inv">[I] 인벤</button>
@@ -842,6 +842,12 @@ const PERKS = {
       mods:(v)=>[{id:'evade_flat',value:v + 1}] },
     { id:'brk_r',  name:'갑옷 파괴',  range:[4,8],  rarity:'rare',
       mods:(v)=>[{id:'pierce',value:v}] },
+    { id:'lck_r',  name:'행운의 반지', range:[5,11], rarity:'rare',
+      desc:(v)=>`보상 등장 시 ${v}% 확률로 한 단계 위 등급으로 갱신`,
+      mods:(v)=>[{id:'loot_upgrade',value:v}] },
+    { id:'eye_r',  name:'감정사의 눈', range:[1,1], rarity:'rare',
+      desc:'보상 선택지 +1개 (3 → 4)',
+      mods:()=>[{id:'loot_choices',value:1}] },
   ],
   unique: [
     { id:'bld_u',  name:'피의 격노',   range:[10,18], rarity:'unique',
@@ -858,6 +864,12 @@ const PERKS = {
       mods:(v)=>[{id:'doublestrike',value:v},{id:'lifesteal',value:2}] },
     { id:'tit_u',  name:'거인의 피',  range:[10,18], rarity:'unique',
       mods:(v)=>[{id:'hp_pct',value:v},{id:'def_pct',value:Math.floor(v/2)}] },
+    { id:'bsh_u',  name:'보스 사냥의 직감', range:[3,7], rarity:'unique',
+      desc:(v)=>`일반 적 처치 시 ${v}% 확률로 보스템이 보상에 추가`,
+      mods:(v)=>[{id:'loot_boss_drop',value:v}] },
+    { id:'flr_u',  name:'장인의 안목', range:[1,1], rarity:'unique',
+      desc:'모든 보상이 매직 등급 이상으로 등장',
+      mods:()=>[{id:'loot_floor',value:1}] },
   ],
   legendary: [
     { id:'phx_l',  name:'불사조의 깃털', range:[30,55], rarity:'legendary',
@@ -872,6 +884,12 @@ const PERKS = {
       mods:(v)=>[{id:'doublestrike',value:v},{id:'crit_flat',value:Math.floor(v/2)},{id:'critdmg_flat',value:30}] },
     { id:'shd_l',  name:'성스러운 방벽',range:[12,22], rarity:'legendary',
       mods:(v)=>[{id:'dmg_reduction',value:v}] },
+    { id:'snd_l',  name:'두 번째 기회', range:[30,55], rarity:'legendary',
+      desc:(v)=>`${v}% 확률로 보상 선택지가 +1 추가 등장`,
+      mods:(v)=>[{id:'loot_extra',value:v}] },
+    { id:'flr_l',  name:'최상급 매니아', range:[1,1], rarity:'legendary',
+      desc:'모든 보상이 레어 등급 이상으로 등장',
+      mods:()=>[{id:'loot_floor',value:2}] },
   ],
   mythic: [
     { id:'phx_m',  name:'영원불멸',     range:[50,70], rarity:'mythic',
@@ -892,6 +910,12 @@ const PERKS = {
     { id:'ann_m',  name:'천멸',         range:[5,10], rarity:'mythic',
       desc:(v)=>`적 HP ${v}% 이하면 처형, 관통 +30%`,
       mods:(v)=>[{id:'execute',value:v},{id:'pierce',value:30}] },
+    { id:'mid_m',  name:'황금 손길',    range:[1,1], rarity:'mythic',
+      desc:'모든 보상이 한 단계 위 등급으로 자동 변환',
+      mods:()=>[{id:'loot_upgrade_all',value:1}] },
+    { id:'orc_m',  name:'운명의 신탁',  range:[40,70], rarity:'mythic',
+      desc:(v)=>`보상 ${v}% 확률로 +1 추가 등장 + 모든 보상 매직 이상`,
+      mods:(v)=>[{id:'loot_extra',value:v},{id:'loot_floor',value:1}] },
   ]
 };
 
@@ -1042,7 +1066,13 @@ const BOSS_NEGATIVES = [
   { id:'curse_no_lifesteal',label:(v)=>`흡혈 효과 무효화 (마른 핏줄)`,         range:[1, 1] },
   { id:'curse_no_revive',label:(v)=>`부활 효과 무효화 (영면)`,                 range:[1, 1] },
   { id:'curse_boss_vuln',label:(v)=>`보스에게 받는 데미지 +${v}% (오만)`,      range:[20, 50] },
-  { id:'curse_first_miss',label:(v)=>`전투 첫 공격 무조건 빗나감 (둔감)`,      range:[1, 1] }
+  { id:'curse_first_miss',label:(v)=>`전투 첫 공격 무조건 빗나감 (둔감)`,      range:[1, 1] },
+  // 다이나믹 - 효과
+  { id:'curse_brittle', label:(v)=>`공격 시 ${v}% 확률로 무기 부서짐, 데미지 1로 감소 (취약)`, range:[5, 11] },
+  { id:'curse_recoil',  label:(v)=>`공격 시 ${v}% 확률로 자기 최대HP -5% (반동)`,             range:[6, 12] },
+  { id:'curse_chaos',   label:(v)=>`공격 시 ${v}% 확률로 자기 자신을 타격 (혼란)`,             range:[3, 7]  },
+  { id:'curse_grow',    label:(v)=>`매 턴 적 HP +${v}% 회복 (성장)`,                          range:[2, 4]  },
+  { id:'curse_explode', label:(v)=>`보스 처치 시 자기 최대HP -${v}% (자폭 유언)`,              range:[10, 20] }
 ];
 
 function genBossItem(stage){
@@ -1660,6 +1690,12 @@ function modExplain(id){
     stagger: 'N% 확률로 적 경직 (1턴 행동 무효)',
     cleave: '매 공격 시 적 방어력 영구 감소',
     evade_flat: '회피율 추가 (50% 이상부터 효율 둔화)',
+    loot_choices:    '보상 시 선택지 칸 수 추가',
+    loot_upgrade:    '보상 한 칸이 한 단계 위 등급으로 갱신될 확률',
+    loot_extra:      '보상이 +1 추가 등장할 확률',
+    loot_floor:      '보상 최소 등급 보장 (1=매직 이상, 2=레어 이상)',
+    loot_boss_drop:  '일반 적 처치 시 보스템 추가 등장 확률',
+    loot_upgrade_all:'모든 보상이 한 단계 위 등급으로 자동 변환',
   }[id] || '';
 }
 
@@ -1710,6 +1746,12 @@ function describeMod(m){
     case 'revive_count': return `부활 ${m.value}회`;
     case 'revive_pct': return `부활HP ${m.value}%`;
     case 'always_crit': return `상시 치명타`;
+    case 'loot_choices': return `보상 선택지 +${m.value}`;
+    case 'loot_upgrade': return `보상 등급 상승 ${m.value}%`;
+    case 'loot_extra': return `보상 +1 추가 ${m.value}%`;
+    case 'loot_floor': return `보상 최소 등급 +${m.value}단계`;
+    case 'loot_boss_drop': return `일반 적 보스템 드롭 ${m.value}%`;
+    case 'loot_upgrade_all': return `모든 보상 +1 등급`;
     default: return `${m.id} ${m.value}`;
   }
 }
@@ -2005,6 +2047,13 @@ function attack(){
     showDamage('player', dmg, '');
     if (G.player.hp <= 0) return endBattle(false);
   }
+  // 다이나믹 저주: 성장 — 매 턴 적 HP 회복
+  if (mods.curse_grow && e.maxHp > e.hp){
+    const heal = Math.max(1, Math.ceil(e.maxHp * mods.curse_grow / 100));
+    e.hp = Math.min(e.maxHp, e.hp + heal);
+    log(`성장의 저주: 적 HP +${heal}`, 'effect');
+    showDamage('enemy', heal, 'heal');
+  }
 
   // 1) 플레이어 공격 (eternal_rage: 매 턴 atk 누적)
   if (mods.rage_per_turn){
@@ -2044,6 +2093,31 @@ function attack(){
   if (mods.curse_first_miss && G.battle.firstStrike){
     log('둔감의 저주: 첫 공격 빗나감!', 'miss');
     dmg = 0;
+  }
+
+  // 다이나믹 저주 — 공격 발동
+  // 취약: 무기 부서짐 (데미지 1)
+  if (mods.curse_brittle && Math.random() * 100 < mods.curse_brittle){
+    log('취약의 저주! 무기가 부서져 데미지 1로 감소', 'crit');
+    dmg = 1; isCrit = false;
+  }
+  // 혼란: 자기 자신 타격 (적 데미지 무효)
+  let chaosTriggered = false;
+  if (mods.curse_chaos && Math.random() * 100 < mods.curse_chaos){
+    chaosTriggered = true;
+    G.player.hp = Math.max(0, G.player.hp - dmg);
+    log(`혼란의 저주! 자기 자신을 ${dmg} 타격`, 'crit');
+    showDamage('player', dmg, isCrit ? 'crit' : '');
+    if (G.player.hp <= 0) return endBattle(false);
+    dmg = 0;
+  }
+  // 반동: 자기 max HP -5%
+  if (mods.curse_recoil && Math.random() * 100 < mods.curse_recoil){
+    const recoilDmg = Math.max(1, Math.floor(maxHp(G.player) * 0.05));
+    G.player.hp = Math.max(0, G.player.hp - recoilDmg);
+    log(`반동의 저주! HP -${recoilDmg}`, 'crit');
+    showDamage('player', recoilDmg, '');
+    if (G.player.hp <= 0) return endBattle(false);
   }
 
   // 처형
@@ -2283,6 +2357,13 @@ function endBattle(playerWon){
       G.player.nextEnemyHpReduction = mods.on_kill_next_hp_pct;
     }
     log(`>> ${G.battle.enemy.name} 처치!`, 'reward');
+    // 자폭 유언 — 보스 처치 시 자기 max HP -%
+    if (G.battle.enemy.isBoss && mods.curse_explode){
+      const dmg = Math.max(1, Math.floor(maxHp(G.player) * mods.curse_explode / 100));
+      G.player.hp = Math.max(1, G.player.hp - dmg);
+      log(`자폭의 유언! HP -${dmg}`, 'crit');
+      showDamage('player', dmg, '');
+    }
     if (G.stage >= 100){
       G.won = true;
       saveGame();
@@ -2317,7 +2398,15 @@ function endBattle(playerWon){
    REWARDS
 =========================================================== */
 
+function upgradeRarity(r){
+  const order = ['common','magic','rare','unique','legendary','mythic'];
+  const i = order.indexOf(r);
+  return i >= 0 && i < order.length - 1 ? order[i+1] : r;
+}
+
 function generateRewards(stage){
+  const mods = aggregateMods(G.player);
+
   // 보스 처치 시: 그 층 전용 풀에서 1개만 — 장비 형태
   if (G.battle.enemy && G.battle.enemy.isBoss){
     const item = genBossItem(stage);
@@ -2332,11 +2421,27 @@ function generateRewards(stage){
     }
     return choices;
   }
-  // 일반 보상
+
+  // 일반 보상 — 메타 효과 적용
   const weights = rarityWeights(stage);
+  const floor = mods.loot_floor || 0;
+  let filteredWeights = weights;
+  if (floor > 0){
+    const f = weights.filter(w => RARITY_INDEX[w.id] >= floor);
+    if (f.length > 0) filteredWeights = f;
+  }
+  let numChoices = 3 + (mods.loot_choices || 0);
+  if (mods.loot_extra && Math.random() * 100 < mods.loot_extra) numChoices += 1;
+
   const choices = [];
-  for (let i = 0; i < 3; i++){
-    const rarity = weightedChoice(weights).id;
+  for (let i = 0; i < numChoices; i++){
+    let rarity = weightedChoice(filteredWeights).id;
+    if (mods.loot_upgrade && Math.random() * 100 < mods.loot_upgrade){
+      rarity = upgradeRarity(rarity);
+    }
+    if (mods.loot_upgrade_all){
+      rarity = upgradeRarity(rarity);
+    }
     const isItem = Math.random() < 0.55;
     if (isItem){
       const slot = weightedChoice(SLOTS).id;
@@ -2345,6 +2450,13 @@ function generateRewards(stage){
       choices.push(genPerk(rarity, stage));
     }
   }
+
+  // 일반 적 처치 시 보스템 추가 등장
+  if (mods.loot_boss_drop && Math.random() * 100 < mods.loot_boss_drop){
+    const bi = genBossItem(stage);
+    if (bi) choices.push(bi);
+  }
+
   if (Math.random() < 0.50){
     const ps = computeStats(G.player);
     const pct = 0.30 + Math.random() * 0.30;
@@ -2432,7 +2544,9 @@ function modIcon(id){
     revive_count:'☥', revive_pct:'☥',
     always_crit:'💯',
     cycle5_freeze:'❄', cycle7_invuln:'⛨',
-    first_hit_block:'⛨'
+    first_hit_block:'⛨',
+    loot_choices:'🎁', loot_upgrade:'🍀', loot_extra:'🎲',
+    loot_floor:'⭐', loot_boss_drop:'👹', loot_upgrade_all:'✨'
   };
   return m[id] || '✦';
 }
@@ -2442,12 +2556,14 @@ function modShort(id, v){
   if (id === 'revive_count') return `×${v}`;
   if (id === 'first_hit_block') return '';
   if (id === 'cycle5_freeze' || id === 'cycle7_invuln') return '';
+  if (id === 'loot_upgrade_all') return 'ON';
   const PCT = new Set([
     'atk_pct','hp_pct','def_pct','regen_pct',
     'evade_flat','crit_flat','critdmg_flat',
     'lifesteal','thorns','doublestrike','evade','execute','bleed',
     'pierce','crit_lifesteal','firstblood','stagger',
-    'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct'
+    'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct',
+    'loot_upgrade','loot_extra','loot_boss_drop'
   ]);
   return PCT.has(id) ? `+${v}%` : `+${v}`;
 }
@@ -2543,13 +2659,13 @@ function renderPlayer(){
 
   const badges = [];
   if (reviveLeft > 0) badges.push(`<span class="badge">부활 ${reviveLeft}</span>`);
-  if (mods.always_crit) badges.push(`<span class="badge">상시CRIT</span>`);
+  if (mods.always_crit) badges.push(`<span class="badge">상시 치명타</span>`);
 
   $('player-card').innerHTML = `
-    <h3>PLAYER</h3>
+    <h3>플레이어</h3>
     <div class="status-icons">${badges.join('')}</div>
     <div class="sprite-stage"><div class="sprite player" style="background-position:${spriteBgPos(PLAYER_SPRITE_IDX)}"></div></div>
-    <div class="hpbar"><div style="width:${pct}%"></div><span>HP ${hp} / ${max}</span></div>
+    <div class="hpbar"><div style="width:${pct}%"></div><span>체력 ${hp} / ${max}</span></div>
     <div class="stats">${statsRows}</div>
     <div class="equipment"><div class="header-mini">- 장비 -</div>${eqRows}</div>
     <div class="perks"><div class="header-mini">- 특수효과 (${G.player.perks.length}) -</div><div class="perks-list">${perksHtml}</div></div>
@@ -2566,11 +2682,11 @@ function renderEnemy(){
 
   const sIdx = (e.spriteIdx != null) ? e.spriteIdx : 1;
   $('enemy-card').innerHTML = `
-    <h3>ENEMY</h3>
+    <h3>적</h3>
     <div class="status-icons">${badges.join('')}</div>
     <div class="name">${e.name}</div>
     <div class="sprite-stage"><div class="sprite" style="background-position:${spriteBgPos(sIdx)}" title="${e.name}"></div></div>
-    <div class="hpbar"><div style="width:${pct}%"></div><span>HP ${Math.max(0,e.hp)} / ${e.maxHp}</span></div>
+    <div class="hpbar"><div style="width:${pct}%"></div><span>체력 ${Math.max(0,e.hp)} / ${e.maxHp}</span></div>
     <div class="stats">
       <span class="lbl">공격력</span><span class="val">${e.atk}</span>
       <span class="lbl">방어력</span><span class="val">${e.def}</span>
@@ -2669,12 +2785,36 @@ function compareItemMods(newItem, oldItem){
 function modShortLabel(id){
   const map = {
     atk_flat:'공격력', atk_pct:'공격력%', hp_flat:'체력', hp_pct:'체력%',
-    def_flat:'방어력', def_pct:'방어력%', spd_flat:'속도', spd_pct:'속도%',
-    crit_flat:'치명타율%', critdmg_flat:'치명뎀%',
+    def_flat:'방어력', def_pct:'방어력%',
+    evade_flat:'회피율%', crit_flat:'치명타율%', critdmg_flat:'치명타뎀%',
     lifesteal:'흡혈%', thorns:'가시%', doublestrike:'추가타%', evade:'회피%',
     execute:'처형%', bleed:'출혈%', regen_flat:'재생', regen_pct:'재생%',
-    pierce:'관통%', crit_lifesteal:'치명흡정%', firstblood:'선공뎀%',
-    stagger:'경직%', cleave:'관통타', cycle4_freeze:'시간정지'
+    pierce:'관통%', crit_lifesteal:'치명타 흡정%', firstblood:'선공뎀%',
+    stagger:'경직%', cleave:'갑옷 깎기',
+    cycle3_dmg_pct:'3턴 강타%', cycle4_freeze:'시간 정지',
+    cycle5_freeze:'시간 정지', cycle7_invuln:'무적 펄스',
+    first_hit_block:'첫 피격 무효',
+    low_hp_atk:'광폭화%', low_hp_crit:'위기 본능', low_hp_dr:'위기 방어%',
+    true_dmg_pct:'진실 데미지%', true_dmg_per_hit_pct:'폭발 진실뎀%',
+    dmg_reduction:'피해 감소%', flat_dr:'고정 피해 감소',
+    revive_count:'부활 횟수', revive_pct:'부활 체력%', revive_dmg_pct:'부활 충격%',
+    always_crit:'상시 치명타',
+    on_kill_atk_perm:'처치 시 공격력 영구',
+    on_kill_max_hp:'처치 시 최대 체력 영구',
+    on_kill_next_hp_pct:'다음 적 체력 차감%',
+    bossbane:'보스 데미지%', crit_chain:'치명타 연쇄',
+    evade_counter:'회피 반격%', desperate_mult:'절명 배수',
+    rage_per_turn:'분노 누적/턴',
+    loot_choices:'보상 선택지', loot_upgrade:'보상 등급 상승%',
+    loot_extra:'보상 +1 등장%', loot_floor:'보상 최소 등급',
+    loot_boss_drop:'보스템 추가%', loot_upgrade_all:'전체 등급 상승',
+    curse_drain:'턴당 체력 손실', curse_cycle5:'주기적 체력 손실%',
+    curse_heal:'회복 감소%', curse_crit_self:'치명타 반동%',
+    curse_evade_silence:'회피 역류', curse_slow_start:'지각 턴 수',
+    curse_no_lifesteal:'흡혈 봉인', curse_no_revive:'부활 봉인',
+    curse_boss_vuln:'보스 피격 증가%', curse_first_miss:'첫 공격 빗나감',
+    curse_brittle:'취약%', curse_recoil:'반동%', curse_chaos:'혼란%',
+    curse_grow:'적 성장%', curse_explode:'자폭%'
   };
   return map[id] || id;
 }
@@ -2896,12 +3036,12 @@ function showInventoryModal(){
     <div class="inv-row">
       <div class="row-head"><span class="row-name">최종 스탯</span></div>
       <ul class="row-opts">
-        <li>HP ${G.player.hp} / ${ps.hp}</li>
+        <li>체력 ${G.player.hp} / ${ps.hp}</li>
         <li>공격력 ${ps.atk}</li>
         <li>방어력 ${ps.def}</li>
-        <li>속도 ${ps.spd}</li>
+        <li>회피율 ${ps.evade}%</li>
         <li>치명타율 ${ps.crit}%</li>
-        <li>치명타뎀 ${ps.critdmg}%</li>
+        <li>치명타 데미지 ${ps.critdmg}%</li>
       </ul>
     </div>
     <div class="inv-row">
