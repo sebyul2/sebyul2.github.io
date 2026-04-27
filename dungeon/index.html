@@ -846,12 +846,15 @@ const PERKS = {
       mods:(v)=>[{id:'evade_flat',value:v + 1}] },
     { id:'brk_r',  name:'갑옷 파괴',  range:[4,8],  rarity:'rare',
       mods:(v)=>[{id:'pierce',value:v}] },
-    { id:'lck_r',  name:'행운의 반지', range:[5,11], rarity:'rare',
+    { id:'lck_r',  name:'행운의 반지', range:[5,11], rarity:'rare', weight:0.35,
       desc:(v)=>`보상 등장 시 ${v}% 확률로 한 단계 위 등급으로 갱신`,
       mods:(v)=>[{id:'loot_upgrade',value:v}] },
-    { id:'eye_r',  name:'감정사의 눈', range:[1,1], rarity:'rare',
-      desc:'보상 선택지 +1개 (3 → 4)',
+    { id:'eye_r',  name:'감정사의 눈', range:[1,1], rarity:'rare', weight:0.35,
+      desc:'보상 선택지 +1개 (최대 +2까지 누적)',
       mods:()=>[{id:'loot_choices',value:1}] },
+    { id:'mer_r',  name:'상인의 비결', range:[8,15], rarity:'rare', weight:0.35,
+      desc:(v)=>`보스 외 적 처치 시 ${v}% 확률로 보너스 회복 5%`,
+      mods:(v)=>[{id:'loot_kill_heal',value:v}] },
   ],
   unique: [
     { id:'bld_u',  name:'피의 격노',   range:[10,18], rarity:'unique',
@@ -868,12 +871,15 @@ const PERKS = {
       mods:(v)=>[{id:'doublestrike',value:v},{id:'lifesteal',value:2}] },
     { id:'tit_u',  name:'거인의 피',  range:[10,18], rarity:'unique',
       mods:(v)=>[{id:'hp_pct',value:v},{id:'def_pct',value:Math.floor(v/2)}] },
-    { id:'bsh_u',  name:'보스 사냥의 직감', range:[3,7], rarity:'unique',
+    { id:'bsh_u',  name:'보스 사냥의 직감', range:[3,7], rarity:'unique', weight:0.40,
       desc:(v)=>`일반 적 처치 시 ${v}% 확률로 보스템이 보상에 추가`,
       mods:(v)=>[{id:'loot_boss_drop',value:v}] },
-    { id:'flr_u',  name:'장인의 안목', range:[1,1], rarity:'unique',
+    { id:'flr_u',  name:'장인의 안목', range:[1,1], rarity:'unique', weight:0.30,
       desc:'모든 보상이 매직 등급 이상으로 등장',
       mods:()=>[{id:'loot_floor',value:1}] },
+    { id:'rch_u',  name:'풍요의 별', range:[8,15], rarity:'unique', weight:0.35,
+      desc:(v)=>`보상 등장 시 ${v}% 확률로 +1 추가 등장`,
+      mods:(v)=>[{id:'loot_extra',value:v}] },
   ],
   legendary: [
     { id:'phx_l',  name:'불사조의 깃털', range:[30,55], rarity:'legendary',
@@ -888,12 +894,15 @@ const PERKS = {
       mods:(v)=>[{id:'doublestrike',value:v},{id:'crit_flat',value:Math.floor(v/2)},{id:'critdmg_flat',value:30}] },
     { id:'shd_l',  name:'성스러운 방벽',range:[12,22], rarity:'legendary',
       mods:(v)=>[{id:'dmg_reduction',value:v}] },
-    { id:'snd_l',  name:'두 번째 기회', range:[30,55], rarity:'legendary',
+    { id:'snd_l',  name:'두 번째 기회', range:[30,55], rarity:'legendary', weight:0.40,
       desc:(v)=>`${v}% 확률로 보상 선택지가 +1 추가 등장`,
       mods:(v)=>[{id:'loot_extra',value:v}] },
-    { id:'flr_l',  name:'최상급 매니아', range:[1,1], rarity:'legendary',
+    { id:'flr_l',  name:'최상급 매니아', range:[1,1], rarity:'legendary', weight:0.30,
       desc:'모든 보상이 레어 등급 이상으로 등장',
       mods:()=>[{id:'loot_floor',value:2}] },
+    { id:'gam_l',  name:'운명의 도박', range:[20,40], rarity:'legendary', weight:0.30,
+      desc:(v)=>`보상 등장 시 ${v}% 확률로 한 단계 위 등급 + 보스템 ${Math.floor(v/4)}% 추가`,
+      mods:(v)=>[{id:'loot_upgrade',value:v},{id:'loot_boss_drop',value:Math.floor(v/4)}] },
   ],
   mythic: [
     { id:'phx_m',  name:'영원불멸',     range:[50,70], rarity:'mythic',
@@ -914,10 +923,10 @@ const PERKS = {
     { id:'ann_m',  name:'천멸',         range:[5,10], rarity:'mythic',
       desc:(v)=>`적 HP ${v}% 이하면 처형, 관통 +30%`,
       mods:(v)=>[{id:'execute',value:v},{id:'pierce',value:30}] },
-    { id:'mid_m',  name:'황금 손길',    range:[1,1], rarity:'mythic',
+    { id:'mid_m',  name:'황금 손길',    range:[1,1], rarity:'mythic', weight:0.30,
       desc:'모든 보상이 한 단계 위 등급으로 자동 변환',
       mods:()=>[{id:'loot_upgrade_all',value:1}] },
-    { id:'orc_m',  name:'운명의 신탁',  range:[40,70], rarity:'mythic',
+    { id:'orc_m',  name:'운명의 신탁',  range:[40,70], rarity:'mythic', weight:0.30,
       desc:(v)=>`보상 ${v}% 확률로 +1 추가 등장 + 모든 보상 매직 이상`,
       mods:(v)=>[{id:'loot_extra',value:v},{id:'loot_floor',value:1}] },
   ]
@@ -1518,13 +1527,15 @@ function genEnemy(stage){
   const isFinal = stage === 100;
 
   // levelScale 동일 곡선에 비율 적용.
-  // 1~5층: 약간 상향 (1.10), 6층부터 가속(+0.009/층).
+  // 1~5층: 약간 상향 (1.10), 6층부터 가속(+0.018/층) — 기존 가속(0.009)의 2배.
   const ls = levelScale(stage);
-  const baseMult = 1.10 + Math.max(0, stage - 5) * 0.009;
+  const baseMult = 1.10 + Math.max(0, stage - 5) * 0.018;
   const eScale = ls * baseMult;
-  const baseHp  = Math.round(36  * eScale);
-  const baseAtk = Math.round(4.5 * eScale);
-  const baseDef = Math.round(1.0 * eScale);
+  const baseHp  = Math.round(40  * eScale);
+  const baseAtk = Math.round(6.5 * eScale);
+  const baseDef = Math.round(0.85 * eScale);
+  // 적의 방어 무시율: 후반에 player가 def 누적해도 적 데미지가 들어가도록.
+  const enemyPierce = clamp(Math.floor(stage * 0.4), 0, 55);
   const baseEvade = clamp(Math.floor(stage * 0.15), 0, 25);
   const baseCrit = clamp(3 + Math.floor(stage * 0.18), 3, 35);
 
@@ -1546,7 +1557,8 @@ function genEnemy(stage){
     critdmg: 150,
     bleed: 0,
     stagger: false,
-    armorBroken: 0
+    armorBroken: 0,
+    pierceVsPlayerDef: enemyPierce
   };
 }
 
@@ -1665,7 +1677,14 @@ function genItem(slot, rarity, stage){
 
 function genPerk(rarity, stage){
   const pool = PERKS[rarity];
-  const tpl = choice(pool);
+  // pool 항목에 weight가 있으면 가중치 추출. 없으면 1.0.
+  const totalW = pool.reduce((s, p) => s + (p.weight != null ? p.weight : 1.0), 0);
+  let r = Math.random() * totalW;
+  let tpl = pool[0];
+  for (const p of pool){
+    r -= (p.weight != null ? p.weight : 1.0);
+    if (r <= 0){ tpl = p; break; }
+  }
   // value 결정
   let val = 0;
   if (tpl.range){
@@ -1729,12 +1748,13 @@ function modExplain(id){
     stagger: 'N% 확률로 적 경직 (1턴 행동 무효)',
     cleave: '매 공격 시 적 방어력 영구 감소',
     evade_flat: '회피율 추가 (50% 이상부터 효율 둔화)',
-    loot_choices:    '보상 시 선택지 칸 수 추가',
+    loot_choices:    '보상 시 선택지 칸 수 추가 (최대 +2)',
     loot_upgrade:    '보상 한 칸이 한 단계 위 등급으로 갱신될 확률',
     loot_extra:      '보상이 +1 추가 등장할 확률',
     loot_floor:      '보상 최소 등급 보장 (1=매직 이상, 2=레어 이상)',
     loot_boss_drop:  '일반 적 처치 시 보스템 추가 등장 확률',
     loot_upgrade_all:'모든 보상이 한 단계 위 등급으로 자동 변환',
+    loot_kill_heal:  '일반 적 처치 시 N% 확률로 보너스 회복 5%',
   }[id] || '';
 }
 
@@ -1791,6 +1811,7 @@ function describeMod(m){
     case 'loot_floor': return `보상 최소 등급 +${m.value}단계`;
     case 'loot_boss_drop': return `일반 적 보스템 드롭 ${m.value}%`;
     case 'loot_upgrade_all': return `모든 보상 +1 등급`;
+    case 'loot_kill_heal': return `처치 시 보너스 회복 ${m.value}%`;
     case 'crit_burst': return `치명타 폭발 ${m.value}%`;
     case 'omen_5': return `매 5번째 공격 처형`;
     case 'first_executor': return `선공의 처형 ${m.value}%`;
@@ -2351,7 +2372,7 @@ function attack(){
       const ed = calcOutgoingDamage(
         { atk: e.atk, crit: e.crit, critdmg: e.critdmg },
         { def: ps.def },
-        {}
+        { pierce_pct: e.pierceVsPlayerDef || 0 }
       );
       let edmg = ed.dmg;
       // 첫 피격 무효 (holy_shield)
@@ -2485,6 +2506,12 @@ function endBattle(playerWon){
       const healAmt = Math.max(1, Math.floor(ps.hp * healPct / 100));
       log(isBoss ? '>> 보스 처치 보너스: 대회복!' : '> 스테이지 클리어 회복', 'reward');
       healPlayer(healAmt, true);
+      // 상인의 비결: 일반 적 처치 시 N% 확률로 보너스 회복 5%
+      if (!isBoss && mods.loot_kill_heal && Math.random() * 100 < mods.loot_kill_heal){
+        const bonusHeal = Math.max(1, Math.floor(ps.hp * 0.05));
+        log(`상인의 비결! 보너스 +${bonusHeal} 회복`, 'reward');
+        healPlayer(bonusHeal, true);
+      }
     }
     // 보상
     G.pendingReward = generateRewards(G.stage);
@@ -2536,7 +2563,8 @@ function generateRewards(stage){
     const f = weights.filter(w => RARITY_INDEX[w.id] >= floor);
     if (f.length > 0) filteredWeights = f;
   }
-  let numChoices = 3 + (mods.loot_choices || 0);
+  // loot_choices는 최대 +2 (4번 누적해도 5개를 넘지 않음)
+  let numChoices = 3 + Math.min(2, mods.loot_choices || 0);
   if (mods.loot_extra && Math.random() * 100 < mods.loot_extra) numChoices += 1;
 
   const choices = [];
@@ -2653,6 +2681,7 @@ function modIcon(id){
     first_hit_block:'⛨',
     loot_choices:'🎁', loot_upgrade:'🍀', loot_extra:'🎲',
     loot_floor:'⭐', loot_boss_drop:'👹', loot_upgrade_all:'✨',
+    loot_kill_heal:'💰',
     crit_burst:'💢', omen_5:'5️⃣', first_executor:'🚀'
   };
   return m[id] || '✦';
@@ -2672,7 +2701,7 @@ function modShort(id, v){
     'lifesteal','thorns','doublestrike','evade','execute','bleed',
     'pierce','crit_lifesteal','firstblood','stagger',
     'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct',
-    'loot_upgrade','loot_extra','loot_boss_drop',
+    'loot_upgrade','loot_extra','loot_boss_drop','loot_kill_heal',
     'crit_burst','first_executor',
     'curse_glass_cannon','curse_blood_offering','curse_revenge'
   ]);
@@ -2919,6 +2948,7 @@ function modShortLabel(id){
     loot_choices:'보상 선택지', loot_upgrade:'보상 등급 상승%',
     loot_extra:'보상 +1 등장%', loot_floor:'보상 최소 등급',
     loot_boss_drop:'보스템 추가%', loot_upgrade_all:'전체 등급 상승',
+    loot_kill_heal:'처치 보너스 회복%',
     curse_drain:'턴당 체력 손실', curse_cycle5:'주기적 체력 손실%',
     curse_heal:'회복 감소%', curse_crit_self:'치명타 반동%',
     curse_evade_silence:'회피 역류', curse_slow_start:'지각 턴 수',
