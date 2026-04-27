@@ -1873,8 +1873,8 @@ function generateRewards(stage){
         mods: tpl.mods.map(m => ({...m}))
       });
     }
-    // 보스도 30% 보너스 힐 가능
-    if (Math.random() < 0.30){
+    // 보스도 50% 보너스 힐 가능
+    if (Math.random() < 0.50){
       const ps = computeStats(G.player);
       const pct = 0.30 + Math.random() * 0.30;
       const healAmt = Math.max(1, Math.floor(ps.hp * pct));
@@ -1897,7 +1897,7 @@ function generateRewards(stage){
       choices.push(genPerk(rarity, stage));
     }
   }
-  if (Math.random() < 0.30){
+  if (Math.random() < 0.50){
     const ps = computeStats(G.player);
     const pct = 0.30 + Math.random() * 0.30;
     const healAmt = Math.max(1, Math.floor(ps.hp * pct));
