@@ -243,22 +243,14 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   background:linear-gradient(180deg,#3a2a1a,#1a1208);
   border-bottom:2px solid var(--border-bright);
 }
-.choice.type-item{
-  background:linear-gradient(180deg, rgba(90,60,25,.25), rgba(40,25,10,.6));
-  border-color:#a87c3a;
-}
+/* 타입(장비/특수효과)은 banner+아이콘 색만, 외곽선/배경은 레어리티가 결정 */
 .choice.type-item .type-banner{
-  color:#ffd28a; border-color:#a87c3a;
+  color:#ffd28a;
   background:linear-gradient(180deg,#4a3220,#1c1208);
-}
-.choice.type-perk{
-  background:linear-gradient(180deg, rgba(60,30,90,.25), rgba(20,10,40,.6));
-  border-color:#7c5aa8;
 }
 .choice.type-perk .type-banner{
   color:#c8a8ff;
   background:linear-gradient(180deg,#3a1f55,#180828);
-  border-color:#7c5aa8;
 }
 .choice .big-icon{
   text-align:center;
@@ -270,6 +262,42 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
 .choice.type-item .big-icon{color:#ffc870}
 .choice.type-perk .big-icon{color:#c8a8ff}
 .choice.type-boss-item .big-icon{color:#ffae5c; font-size:42px}
+
+/* 레어리티별 카드 외곽선 + 은은한 배경 */
+.choice.rarity-common{
+  border-color:#888;
+  background:linear-gradient(180deg, rgba(180,180,180,.06), rgba(20,15,10,.55));
+}
+.choice.rarity-magic{
+  border-color:#5aa9ff;
+  background:linear-gradient(180deg, rgba(90,169,255,.10), rgba(10,15,30,.6));
+  box-shadow:0 0 8px rgba(90,169,255,.18);
+}
+.choice.rarity-rare{
+  border-color:#ffd23f;
+  background:linear-gradient(180deg, rgba(255,210,63,.10), rgba(30,25,10,.6));
+  box-shadow:0 0 12px rgba(255,210,63,.22);
+}
+.choice.rarity-unique{
+  border-color:#ff7ac6;
+  background:linear-gradient(180deg, rgba(255,122,198,.13), rgba(30,10,25,.6));
+  box-shadow:0 0 14px rgba(255,122,198,.26);
+}
+.choice.rarity-legendary{
+  border-color:#ff8a2c;
+  background:linear-gradient(180deg, rgba(255,138,44,.15), rgba(30,18,8,.6));
+  box-shadow:0 0 16px rgba(255,138,44,.30);
+}
+.choice.rarity-mythic{
+  border-color:#d05ce3;
+  background:linear-gradient(180deg, rgba(208,92,227,.16), rgba(28,10,35,.6));
+  box-shadow:0 0 18px rgba(208,92,227,.36);
+}
+.choice.rarity-boss{
+  border-color:#ffae5c;
+  background:linear-gradient(180deg, rgba(255,174,92,.22), rgba(40,20,8,.55));
+  box-shadow:0 0 22px rgba(255,174,92,.45), inset 0 0 0 1px rgba(255,200,120,.3);
+}
 .choice.type-boss-item{
   border-color:#ffae5c !important;
   box-shadow:0 0 22px rgba(255,174,92,.55), inset 0 0 0 1px rgba(255,200,120,.4);
@@ -2408,7 +2436,8 @@ function showRewardModal(){
         ? `<div class="bonus-badge">♥</div><div class="bonus-heal">+${r.bonusHeal} HP 보너스 회복</div>`
         : '';
       const banner = isBoss ? '★ 보 스   전 리 품 ★' : '▣ 장 비 ▣';
-      const cardCls = isBoss ? 'choice type-item type-boss-item' : 'choice type-item';
+      const rarityCls = `rarity-${r.rarity}`;
+      const cardCls = (isBoss ? 'choice type-item type-boss-item ' : 'choice type-item ') + rarityCls;
       const rarityHtml = isBoss
         ? `<div class="rarity" style="color:#ffae5c">★ 보스 드랍 · Lv.${r.level||r.stage||1}</div>`
         : `<div class="rarity" style="color:${rDef.color}">${rDef.name} · Lv.${r.level||r.stage||1}</div>`;
@@ -2435,7 +2464,7 @@ function showRewardModal(){
         ? `<div class="bonus-badge">♥</div><div class="bonus-heal">+${r.bonusHeal} HP 보너스 회복</div>`
         : '';
       return `
-        <div class="choice type-perk${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
+        <div class="choice type-perk rarity-${r.rarity}${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
           <div class="type-banner">✦ 특 수 효 과 ✦</div>
           <div class="body">
             <div class="big-icon">✦</div>
