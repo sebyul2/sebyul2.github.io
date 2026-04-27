@@ -911,41 +911,61 @@ const Bgm = (() => {
     }
   }
   let currentVariant = 'normal';
+  let loopCount = 0;
 
-  // === Procedural 멜로디 생성 — 매 loop마다 새 멜로디로 패턴 인식 차단 ===
-  const PROGRESSION = [
-    {root:'A2', tones:['A4','C5','E5','G4','A4','D5']},  // Am
-    {root:'F2', tones:['F4','A4','C5','D5','F4','A4']},  // F
-    {root:'G2', tones:['G4','B4','D5','E5','G4','B4']},  // G
-    {root:'A2', tones:['A4','C5','E5','D5','C5','A4']}   // Am
+  // === 작곡된 16마디 BGM (A - B - A' - Outro) ===
+  // Am 키, A minor pentatonic 위주, 음악적 phrasing
+  const MAIN_MELODY = [
+    // === A (verse 메인 모티프) ===
+    // 마디1 (Am): rising + falling
+    ['A4', 0.5], ['C5', 0.5], ['E5', 1.0], ['D5', 1.0], ['C5', 1.0],
+    // 마디2 (F): question
+    ['B4', 0.5], ['A4', 0.5], ['B4', 1.0], ['G4', 2.0],
+    // 마디3 (G): answer
+    ['G4', 0.5], ['A4', 0.5], ['B4', 1.0], ['C5', 1.0], ['B4', 1.0],
+    // 마디4 (Am): resolve + rest
+    ['A4', 2.0], ['_', 2.0],
+
+    // === B (bridge — 대조) ===
+    // 마디5 (Dm): 위로 점프
+    ['D5', 1.0], ['F5', 0.5], ['E5', 0.5], ['D5', 1.0], ['C5', 1.0],
+    // 마디6 (G): 하행
+    ['E5', 1.0], ['D5', 1.0], ['C5', 1.0], ['B4', 1.0],
+    // 마디7 (C): climax
+    ['C5', 0.5], ['D5', 0.5], ['E5', 1.0], ['G5', 1.0], ['E5', 1.0],
+    // 마디8 (E): descent
+    ['F5', 1.0], ['E5', 1.0], ['D5', 2.0],
+
+    // === A' (변주 — 같은 모티프 + ornament) ===
+    // 마디9 (Am)
+    ['A4', 0.5], ['C5', 0.5], ['E5', 1.0], ['D5', 1.0], ['C5', 1.0],
+    // 마디10 (F): 하행에 ornament
+    ['B4', 0.5], ['A4', 0.5], ['B4', 0.5], ['G4', 0.5], ['F4', 0.5], ['G4', 1.5],
+    // 마디11 (G): lift
+    ['G4', 0.5], ['A4', 0.5], ['B4', 1.0], ['C5', 1.0], ['E5', 1.0],
+    // 마디12 (Am): 긴 sustain
+    ['A4', 3.0], ['_', 1.0],
+
+    // === Outro (잔잔히 마무리) ===
+    // 마디13: 천천히 상행
+    ['E4', 1.0], ['F4', 1.0], ['G4', 1.0], ['A4', 1.0],
+    // 마디14: 잔잔
+    ['A4', 0.5], ['E4', 0.5], ['A4', 2.0], ['_', 1.0],
+    // 마디15: 메아리
+    ['_', 1.0], ['A4', 1.0], ['E4', 2.0],
+    // 마디16: 정적
+    ['_', 4.0]
   ];
-  const RHYTHM_OPTIONS = [0.5, 0.5, 1.0, 1.0, 1.0, 1.5, 2.0];
-  function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
-  function generateBar(tones){
-    const bar = [];
-    let q = 0;
-    while (q < 4){
-      let dur = pick(RHYTHM_OPTIONS);
-      if (q + dur > 4) dur = 4 - q;
-      if (Math.random() < 0.18){
-        bar.push(['_', dur]); // 18% 확률 휴지
-      } else {
-        bar.push([pick(tones), dur]);
-      }
-      q += dur;
-    }
-    return bar;
-  }
-  function generateMelody(){
-    const m = [];
-    for (const ch of PROGRESSION){
-      m.push(...generateBar(ch.tones));
-    }
-    return m;
-  }
-  function generateBass(){
-    return PROGRESSION.map(ch => [ch.root, 4.0]);
-  }
+  const MAIN_BASS = [
+    // A
+    ['A2', 4.0], ['F2', 4.0], ['G2', 4.0], ['A2', 4.0],
+    // B
+    ['D3', 4.0], ['G2', 4.0], ['C3', 4.0], ['E3', 4.0],
+    // A'
+    ['A2', 4.0], ['F2', 4.0], ['G2', 4.0], ['A2', 4.0],
+    // Outro
+    ['A2', 4.0], ['A2', 4.0], ['A2', 4.0], ['_', 4.0]
+  ];
 
   function scheduleLoop(){
     if (!playing) return;
@@ -963,16 +983,30 @@ const Bgm = (() => {
       nextLoopAt = start + len + 0.30;
       loopHandle = setTimeout(scheduleLoop, (len - 0.10) * 1000);
     } else {
-      QUARTER = 0.50;
-      // 매번 새 멜로디 생성 — 뇌가 패턴 학습 못 하도록
-      const melody = generateMelody();
-      const bass = generateBass();
-      playTrack(melody, start, 'triangle', 0.16);
-      playTrack(bass,   start, 'sine',     0.09, 'pluck');
-      const lenQ = melody.reduce((s, [, d]) => s + d, 0);
+      QUARTER = 0.42;
+      loopCount++;
+      // Loop마다 instrument 조합 변형 (3-cycle) — 음악적 핵심은 유지, 톤만 다름
+      const v = (loopCount - 1) % 3;
+      let melodyType, melodyVol, bassType, bassVol;
+      if (v === 0){
+        // v0: 따뜻한 triangle 멜로디 + 둥근 sine 베이스 (기본)
+        melodyType = 'triangle'; melodyVol = 0.18;
+        bassType   = 'sine';     bassVol   = 0.09;
+      } else if (v === 1){
+        // v1: 부드러운 sine 멜로디 + triangle 베이스 (둘이 역할 교환)
+        melodyType = 'sine';     melodyVol = 0.20;
+        bassType   = 'triangle'; bassVol   = 0.08;
+      } else {
+        // v2: 멜로디 더 작게 + 베이스 약간 살아남 — 잔잔한 분위기
+        melodyType = 'triangle'; melodyVol = 0.14;
+        bassType   = 'sine';     bassVol   = 0.10;
+      }
+      playTrack(MAIN_MELODY, start, melodyType, melodyVol);
+      playTrack(MAIN_BASS,   start, bassType,   bassVol, 'pluck');
+      const lenQ = MAIN_MELODY.reduce((s, [, d]) => s + d, 0);
       const len = lenQ * QUARTER;
-      // Loop 사이 긴 정적 (3.5초) — 호흡감, 단조로움 차단
-      const silenceSec = 3.5;
+      // Loop 사이 정적 — 호흡감
+      const silenceSec = 2.5;
       nextLoopAt = start + len + silenceSec;
       loopHandle = setTimeout(scheduleLoop, (len + silenceSec - 0.30) * 1000);
     }
