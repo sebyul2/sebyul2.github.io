@@ -827,7 +827,7 @@ const Bgm = (() => {
       try {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
         master = ctx.createGain();
-        master.gain.value = muted ? 0 : 0.40;
+        master.gain.value = muted ? 0 : 0.22;
         // 고주파 차단 — 은은한 따뜻함 (1100Hz 컷)
         const lp = ctx.createBiquadFilter();
         lp.type = 'lowpass';
@@ -1026,7 +1026,7 @@ const Bgm = (() => {
       setTimeout(() => {
         if (master){
           master.gain.cancelScheduledValues(c.currentTime);
-          master.gain.setValueAtTime(muted ? 0 : 0.40, c.currentTime);
+          master.gain.setValueAtTime(muted ? 0 : 0.22, c.currentTime);
         }
         playing = true;
         nextLoopAt = 0;
