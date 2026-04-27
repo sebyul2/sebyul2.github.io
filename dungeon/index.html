@@ -1717,6 +1717,14 @@ function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
    COMBAT
 =========================================================== */
 
+function fractionalApply(cat, raw){
+  if (!G.battle.frac) G.battle.frac = {};
+  G.battle.frac[cat] = (G.battle.frac[cat] || 0) + raw;
+  const whole = Math.floor(G.battle.frac[cat]);
+  G.battle.frac[cat] -= whole;
+  return whole;
+}
+
 function startBattle(){
   G.battle.enemy = genEnemy(G.stage);
   // 보스템 효과: 다음 적 HP 깎기
@@ -1733,6 +1741,7 @@ function startBattle(){
   G.battle.rage = 0;          // eternal_rage 누적
   G.battle.firstHitBlocked = false;  // holy_shield 사용 여부
   G.battle.nextCritGuaranteed = false; // crit_chain 상태
+  G.battle.frac = {};         // 소수점 누적 (lifesteal, regen 등)
   G.player.cycleCounters = { thunder:0, sacred:0, freeze:0, c5:0, c7:0 };
   log(`-- 스테이지 ${G.stage} -- ${G.battle.enemy.name} 등장! [공격]을 눌러 시작.`, 'system');
   if (G.battle.enemy.isBoss) log('※ 보스 ※', 'system');
@@ -1835,13 +1844,15 @@ function attack(){
 
   log(`> 턴 ${G.battle.turn}`, 'turn');
 
-  // 신화: 신의 숨결 - 매 턴 적 최대 HP 진실 데미지
+  // 신화: 신의 숨결 - 매 턴 적 최대 HP 진실 데미지 (소수점 누적)
   if (mods.true_dmg_pct){
-    const td = Math.max(1, Math.floor(e.maxHp * mods.true_dmg_pct / 100));
-    e.hp -= td;
-    log(`신의 숨결: 진실 데미지 ${td}`, 'effect');
-    showDamage('enemy', td, 'crit');
-    if (e.hp <= 0) return endBattle(true);
+    const td = fractionalApply('true_dmg_pct', e.maxHp * mods.true_dmg_pct / 100);
+    if (td > 0){
+      e.hp -= td;
+      log(`신의 숨결: 진실 데미지 ${td}`, 'effect');
+      showDamage('enemy', td, 'crit');
+      if (e.hp <= 0) return endBattle(true);
+    }
   }
 
   // 1) 플레이어 공격 (eternal_rage: 매 턴 atk 누적)
@@ -1888,27 +1899,29 @@ function attack(){
   if (isCrit && mods.crit_chain){
     G.battle.nextCritGuaranteed = true;
   }
-  // 매 공격 추가 진실 데미지
+  // 매 공격 추가 진실 데미지 (소수점 누적)
   if (mods.true_dmg_per_hit_pct){
-    const td = Math.max(1, Math.floor(e.maxHp * mods.true_dmg_per_hit_pct / 100));
-    e.hp -= td;
-    log(`폭발! ${td} 진실 데미지`, 'effect');
-    showDamage('enemy', td, '');
+    const td = fractionalApply('true_dmg_per_hit', e.maxHp * mods.true_dmg_per_hit_pct / 100);
+    if (td > 0){
+      e.hp -= td;
+      log(`폭발! ${td} 진실 데미지`, 'effect');
+      showDamage('enemy', td, '');
+    }
   }
   // 갑옷 깎기 (cleave)
   if (mods.cleave){
     e.armorBroken = (e.armorBroken || 0) + mods.cleave;
   }
 
-  // 흡혈 (lifesteal)
+  // 흡혈 (lifesteal) — 소수점 누적
   if (mods.lifesteal){
-    const heal = Math.max(1, Math.floor(dmg * mods.lifesteal / 100));
-    healPlayer(heal);
+    const heal = fractionalApply('lifesteal', dmg * mods.lifesteal / 100);
+    if (heal > 0) healPlayer(heal);
   }
-  // 치명타 흡정
+  // 치명타 흡정 — 소수점 누적
   if (isCrit && mods.crit_lifesteal){
-    const heal = Math.max(1, Math.floor(ps.maxHp * mods.crit_lifesteal / 100));
-    healPlayer(heal);
+    const heal = fractionalApply('crit_lifesteal', ps.maxHp * mods.crit_lifesteal / 100);
+    if (heal > 0) healPlayer(heal);
   }
 
   // 출혈 부여
@@ -1928,7 +1941,10 @@ function attack(){
     e.hp -= dmg2;
     log(`추가 공격! ${dmg2} 데미지${ic2?' (치명타!)':''}`, ic2?'crit':'');
     showDamage('enemy', dmg2, ic2 ? 'crit' : '');
-    if (mods.lifesteal){ healPlayer(Math.max(1, Math.floor(dmg2 * mods.lifesteal / 100))); }
+    if (mods.lifesteal){
+      const heal2 = fractionalApply('lifesteal', dmg2 * mods.lifesteal / 100);
+      if (heal2 > 0) healPlayer(heal2);
+    }
     if (e.hp <= 0) return endBattle(true);
   }
 
@@ -2003,12 +2019,14 @@ function attack(){
         edmg = Math.max(1, edmg - mods.flat_dr);
       }
 
-      // 가시 반사
+      // 가시 반사 — 소수점 누적
       if (mods.thorns){
-        const reflect = Math.max(1, Math.floor(edmg * mods.thorns / 100));
-        e.hp -= reflect;
-        log(`가시 반사! ${reflect}`, 'effect');
-        showDamage('enemy', reflect, '');
+        const reflect = fractionalApply('thorns', edmg * mods.thorns / 100);
+        if (reflect > 0){
+          e.hp -= reflect;
+          log(`가시 반사! ${reflect}`, 'effect');
+          showDamage('enemy', reflect, '');
+        }
       }
 
       // 부활 체크
@@ -2040,7 +2058,8 @@ function attack(){
   if (mods.regen_flat) healPlayer(mods.regen_flat);
   if (mods.regen_pct){
     const max = maxHp(G.player);
-    healPlayer(Math.max(1, Math.floor(max * mods.regen_pct / 100)));
+    const heal = fractionalApply('regen_pct', max * mods.regen_pct / 100);
+    if (heal > 0) healPlayer(heal);
   }
 
   // 시간 정지 사이클 (mythic): cycle4_freeze mod 보유 시 매 4턴마다 적 다음 행동 무효
