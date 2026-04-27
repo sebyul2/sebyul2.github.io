@@ -940,10 +940,10 @@ const SPECIAL_AFFIXES = [
   { id:'stagger',       name:'경직',          range:[3,10],  desc:(v)=>`${v}% 확률로 적 행동 1턴 무효` },
   { id:'cleave',        name:'관통타',        range:[5,14],  desc:(v)=>`매 공격이 적 방어력을 ${v} 영구 감소` },
   // 더 특수한 + 효과
-  { id:'crit_burst',    name:'치명타 폭발',   range:[5,12],  desc:(v)=>`치명타 시 적 최대 HP의 ${v}% 진실 데미지 추가` },
+  { id:'crit_burst',    name:'치명타 폭발',   range:[5,12],  desc:(v)=>`치명타 시 적 최대 HP의 ${v}% 고정 데미지 추가` },
   { id:'omen_5',        name:'운명의 다섯',   range:[1,1],   desc:'매 5번째 자기 공격이 적 즉시 처형' },
-  { id:'first_executor',name:'선공의 처형',   range:[15,30], desc:(v)=>`전투 첫 공격 시 적 최대 HP의 ${v}% 진실 데미지 추가` },
-  { id:'cycle5_truedmg',name:'재앙의 폭풍',   range:[3,8],   desc:(v)=>`매 5턴마다 적 최대 HP의 ${v}% 진실 데미지` },
+  { id:'first_executor',name:'선공의 처형',   range:[15,30], desc:(v)=>`전투 첫 공격 시 적 최대 HP의 ${v}% 고정 데미지 추가` },
+  { id:'cycle5_truedmg',name:'재앙의 폭풍',   range:[3,8],   desc:(v)=>`매 5턴마다 적 최대 HP의 ${v}% 고정 데미지` },
   { id:'chain_doublestrike',name:'연쇄 추가타', range:[10,25], desc:(v)=>`추가타 발동 시 ${v}% 확률로 추가타 한 번 더 (최대 5번 체인)` },
   { id:'low_hp_evade',  name:'사선의 본능',   range:[10,25], desc:(v)=>`HP 30% 이하 시 회피 +${v}%` }
 ];
@@ -1044,7 +1044,7 @@ const PERKS = {
       desc:'모든 공격이 100% 치명타',
       mods:()=>[{id:'always_crit',value:1}] },
     { id:'sac_m',  name:'신의 숨결',    range:[2,4], rarity:'mythic',
-      desc:(v)=>`매 턴 적 최대 HP의 ${v}% 진실 데미지`,
+      desc:(v)=>`매 턴 적 최대 HP의 ${v}% 고정 데미지`,
       mods:(v)=>[{id:'true_dmg_pct',value:v}] },
     { id:'rea_m',  name:'현실 조작',    range:[20,35], rarity:'mythic',
       desc:(v)=>`받는 모든 데미지 ${v}% 감소`,
@@ -1326,7 +1326,7 @@ const _BOSS_ITEMS_DEPRECATED = [
     mods:[{id:'doublestrike',value:50},{id:'lifesteal',value:20}] },
   { id:'invuln_pulse', name:'무적 충격',       desc:'매 7턴마다 적 공격 1회 완전 무효',
     mods:[{id:'cycle7_invuln',value:1}] },
-  { id:'exp_blade',    name:'폭발의 검',       desc:'매 공격마다 적 최대 HP의 4% 추가 진실 데미지',
+  { id:'exp_blade',    name:'폭발의 검',       desc:'매 공격마다 적 최대 HP의 4% 추가 고정 데미지',
     mods:[{id:'true_dmg_per_hit_pct',value:4}] },
   { id:'titan',        name:'거인의 일격',     desc:'전투 첫 턴 데미지 +300%',
     mods:[{id:'firstblood',value:300}] },
@@ -1336,7 +1336,7 @@ const _BOSS_ITEMS_DEPRECATED = [
     mods:[{id:'doublestrike',value:40},{id:'lifesteal',value:30}] },
   { id:'berserk_arm',  name:'광폭의 갑옷',     desc:'HP 30% 이하 시 받는 데미지 -50%',
     mods:[{id:'low_hp_dr',value:50}] },
-  { id:'div_punish',   name:'천벌',            desc:'매 턴 적 최대 HP의 12% 진실 데미지',
+  { id:'div_punish',   name:'천벌',            desc:'매 턴 적 최대 HP의 12% 고정 데미지',
     mods:[{id:'true_dmg_pct',value:12}] },
   { id:'soul_burst',   name:'영혼 폭발',       desc:'적 처치 시 다음 적 HP 25% 즉시 깎음',
     mods:[{id:'on_kill_next_hp_pct',value:25}] },
@@ -1872,8 +1872,8 @@ function modExplain(id){
     revive_pct: '부활 시 회복할 HP 비율',
     revive_dmg_pct: '부활 시 적 HP 차감',
     always_crit: '모든 공격 100% 치명타',
-    true_dmg_pct: '매 턴 적 최대 HP 비례 진실 데미지',
-    true_dmg_per_hit_pct: '매 공격마다 추가 진실 데미지',
+    true_dmg_pct: '매 턴 적 최대 HP 비례 고정 데미지',
+    true_dmg_per_hit_pct: '매 공격마다 추가 고정 데미지',
     dmg_reduction: '받는 데미지 % 감소',
     pierce: '적 방어력 일부 무시',
     lifesteal: '공격 데미지의 N% HP 회복',
@@ -1888,7 +1888,7 @@ function modExplain(id){
     stagger: 'N% 확률로 적 경직 (1턴 행동 무효)',
     cleave: '매 공격 시 적 방어력 영구 감소',
     evade_flat: '회피율 추가 (50% 이상부터 효율 둔화)',
-    cycle5_truedmg: '매 5턴마다 적 최대 HP 비례 진실 데미지',
+    cycle5_truedmg: '매 5턴마다 적 최대 HP 비례 고정 데미지',
     chain_doublestrike: '추가타가 발동되면 그 다음에도 확률로 또 추가타 (체인)',
     low_hp_evade: 'HP가 낮을 때 회피 보너스 (HP 30% 이하)',
     loot_choices:    '보상 시 선택지 칸 수 추가 (최대 +2)',
@@ -1912,7 +1912,7 @@ function describeMod(m){
     case 'evade_counter': return `회피 반격 ${m.value}%`;
     case 'low_hp_crit': return `HP↓${m.value}% 시 항상 치명타`;
     case 'low_hp_dr': return `HP↓30% 시 피해감소 ${m.value}%`;
-    case 'true_dmg_per_hit_pct': return `매 공격 +${m.value}% 진실뎀`;
+    case 'true_dmg_per_hit_pct': return `매 공격 +${m.value}% 고정뎀`;
     case 'rage_per_turn': return `매 턴 atk +${m.value}`;
     case 'first_hit_block': return `첫 피격 무효`;
     case 'cycle5_freeze': return `매 5턴 freeze`;
@@ -1943,7 +1943,7 @@ function describeMod(m){
     case 'cleave': return `관통타 ${m.value}`;
     case 'low_hp_atk': return `광폭 ${m.value}% (HP↓50)`;
     case 'cycle3_dmg_pct': return `3턴 강타 +${m.value}%`;
-    case 'true_dmg_pct': return `진실뎀 ${m.value}%/턴`;
+    case 'true_dmg_pct': return `고정뎀 ${m.value}%/턴`;
     case 'dmg_reduction': return `피해감소 ${m.value}%`;
     case 'revive_count': return `부활 ${m.value}회`;
     case 'revive_pct': return `부활HP ${m.value}%`;
@@ -2241,12 +2241,12 @@ function attack(){
 
   log(`> 턴 ${G.battle.turn}`, 'turn');
 
-  // 신화: 신의 숨결 - 매 턴 적 최대 HP 진실 데미지 (소수점 누적)
+  // 신화: 신의 숨결 - 매 턴 적 최대 HP 고정 데미지 (소수점 누적)
   if (mods.true_dmg_pct){
     const td = fractionalApply('true_dmg_pct', e.maxHp * mods.true_dmg_pct / 100);
     if (td > 0){
       e.hp -= td;
-      log(`신의 숨결: 진실 데미지 ${td}`, 'effect');
+      log(`신의 숨결: 고정 데미지 ${td}`, 'effect');
       showDamage('enemy', td, 'crit');
       if (e.hp <= 0) return endBattle(true);
     }
@@ -2276,11 +2276,11 @@ function attack(){
     log(`성장의 저주: 적 HP +${heal}`, 'effect');
     showDamage('enemy', heal, 'heal');
   }
-  // 재앙의 폭풍 — 매 5턴 적 max HP 진실 데미지
+  // 재앙의 폭풍 — 매 5턴 적 max HP 고정 데미지
   if (mods.cycle5_truedmg && G.battle.turn > 0 && G.battle.turn % 5 === 0){
     const td = Math.max(1, Math.floor(e.maxHp * mods.cycle5_truedmg / 100));
     e.hp -= td;
-    log(`재앙의 폭풍! 진실 데미지 ${td}`, 'effect');
+    log(`재앙의 폭풍! 고정 데미지 ${td}`, 'effect');
     showDamage('enemy', td, 'crit');
     if (e.hp <= 0) return endBattle(true);
   }
@@ -2372,11 +2372,11 @@ function attack(){
       log(`>> 운명의 다섯! 적 즉시 처형`, 'crit');
       dmg = Math.max(dmg, e.hp);
     }
-    // 선공의 처형 — 첫 공격 시 적 max HP -N% 진실 데미지 추가
+    // 선공의 처형 — 첫 공격 시 적 max HP -N% 고정 데미지 추가
     if (G.battle.firstStrike && mods.first_executor){
       const td = Math.max(1, Math.floor(e.maxHp * mods.first_executor / 100));
       e.hp -= td;
-      log(`선공의 처형! 진실 데미지 ${td}`, 'effect');
+      log(`선공의 처형! 고정 데미지 ${td}`, 'effect');
       showDamage('enemy', td, 'crit');
       if (e.hp <= 0) return endBattle(true);
     }
@@ -2408,7 +2408,7 @@ function attack(){
   if (isCrit && mods.crit_burst){
     const td = Math.max(1, Math.floor(e.maxHp * mods.crit_burst / 100));
     e.hp -= td;
-    log(`치명타 폭발! 진실 데미지 ${td}`, 'effect');
+    log(`치명타 폭발! 고정 데미지 ${td}`, 'effect');
     showDamage('enemy', td, 'crit');
     if (e.hp <= 0) return endBattle(true);
   }
@@ -2426,12 +2426,12 @@ function attack(){
   if (isCrit && mods.crit_chain){
     G.battle.nextCritGuaranteed = true;
   }
-  // 매 공격 추가 진실 데미지 (소수점 누적)
+  // 매 공격 추가 고정 데미지 (소수점 누적)
   if (mods.true_dmg_per_hit_pct){
     const td = fractionalApply('true_dmg_per_hit', e.maxHp * mods.true_dmg_per_hit_pct / 100);
     if (td > 0){
       e.hp -= td;
-      log(`폭발! ${td} 진실 데미지`, 'effect');
+      log(`폭발! ${td} 고정 데미지`, 'effect');
       showDamage('enemy', td, '');
     }
   }
@@ -3114,7 +3114,7 @@ function modShortLabel(id){
     cycle5_freeze:'시간 정지', cycle7_invuln:'무적 펄스',
     first_hit_block:'첫 피격 무효',
     low_hp_atk:'광폭화%', low_hp_crit:'위기 본능', low_hp_dr:'위기 방어%',
-    true_dmg_pct:'진실 데미지%', true_dmg_per_hit_pct:'폭발 진실뎀%',
+    true_dmg_pct:'고정 데미지%', true_dmg_per_hit_pct:'폭발 고정뎀%',
     dmg_reduction:'피해 감소%', flat_dr:'고정 피해 감소',
     revive_count:'부활 횟수', revive_pct:'부활 체력%', revive_dmg_pct:'부활 충격%',
     always_crit:'상시 치명타',
