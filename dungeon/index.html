@@ -573,11 +573,11 @@ const STAT_NAMES = {
 };
 
 const RARITIES = [
-  { id:'common',    name:'일반',   color:'#b3b3b3', extras:0, baseWeight:600 },
-  { id:'magic',     name:'매직',   color:'#5aa9ff', extras:1, baseWeight:250 },
-  { id:'rare',      name:'레어',   color:'#ffd23f', extras:2, baseWeight:100 },
-  { id:'unique',    name:'유니크', color:'#ff7ac6', extras:3, baseWeight:20  },
-  { id:'legendary', name:'전설',   color:'#ff8a2c', extras:4, baseWeight:5   },
+  { id:'common',    name:'일반',   color:'#b3b3b3', extras:0, baseWeight:700 },
+  { id:'magic',     name:'매직',   color:'#5aa9ff', extras:1, baseWeight:240 },
+  { id:'rare',      name:'레어',   color:'#ffd23f', extras:2, baseWeight:75  },
+  { id:'unique',    name:'유니크', color:'#ff7ac6', extras:3, baseWeight:12  },
+  { id:'legendary', name:'전설',   color:'#ff8a2c', extras:4, baseWeight:3   },
   { id:'mythic',    name:'신화',   color:'#d05ce3', extras:5, baseWeight:1   }
 ];
 const RARITY_BY_ID = Object.fromEntries(RARITIES.map(r => [r.id, r]));
@@ -646,20 +646,20 @@ function affixLabel(a, val){
   return `${statName} +${val}`;
 }
 
-// 유니크+ 부터 붙는 특수 옵션들 (전체 너프 적용)
+// 유니크+ 부터 붙는 특수 옵션들 (흡수율 등 너프)
 const SPECIAL_AFFIXES = [
-  { id:'lifesteal',     name:'흡혈',          range:[3,12],  desc:(v)=>`공격 시 데미지의 ${v}% HP 회복` },
-  { id:'thorns',        name:'가시',          range:[7,25],  desc:(v)=>`피격 시 데미지의 ${v}% 반사` },
-  { id:'doublestrike',  name:'추가타',        range:[3,14],  desc:(v)=>`${v}% 확률로 즉시 추가 공격` },
-  { id:'evade',         name:'회피',          range:[3,12],  desc:(v)=>`${v}% 확률로 적 공격 회피` },
-  { id:'execute',       name:'처형',          range:[2,8],   desc:(v)=>`적 HP가 ${v}% 이하면 즉시 처형` },
-  { id:'bleed',         name:'출혈',          range:[10,28], desc:(v)=>`${v}% 확률로 적에게 출혈 부여 (3턴, 매 턴 적 최대 HP 5%)` },
-  { id:'regen_flat',    name:'재생',          range:[2,12],  desc:(v)=>`매 턴 ${v} HP 회복` },
-  { id:'pierce',        name:'관통',          range:[7,28],  desc:(v)=>`적 방어력 ${v}% 무시` },
-  { id:'crit_lifesteal',name:'치유 흡정',     range:[3,14],  desc:(v)=>`치명타 시 최대 HP의 ${v}% 회복` },
-  { id:'firstblood',    name:'선공',          range:[12,50], desc:(v)=>`전투 첫 턴 데미지 +${v}%` },
-  { id:'stagger',       name:'경직',          range:[3,12],  desc:(v)=>`${v}% 확률로 적 행동 1턴 무효` },
-  { id:'cleave',        name:'관통타',        range:[6,18],  desc:(v)=>`매 공격이 적 방어력을 ${v} 영구 감소` }
+  { id:'lifesteal',     name:'흡혈',          range:[2,7],   desc:(v)=>`공격 시 데미지의 ${v}% HP 회복` },
+  { id:'thorns',        name:'가시',          range:[6,20],  desc:(v)=>`피격 시 데미지의 ${v}% 반사` },
+  { id:'doublestrike',  name:'추가타',        range:[3,12],  desc:(v)=>`${v}% 확률로 즉시 추가 공격` },
+  { id:'evade',         name:'회피',          range:[3,10],  desc:(v)=>`${v}% 확률로 적 공격 회피` },
+  { id:'execute',       name:'처형',          range:[2,7],   desc:(v)=>`적 HP가 ${v}% 이하면 즉시 처형` },
+  { id:'bleed',         name:'출혈',          range:[8,22],  desc:(v)=>`${v}% 확률로 적에게 출혈 부여 (3턴, 매 턴 적 최대 HP 5%)` },
+  { id:'regen_flat',    name:'재생',          range:[2,10],  desc:(v)=>`매 턴 ${v} HP 회복` },
+  { id:'pierce',        name:'관통',          range:[6,22],  desc:(v)=>`적 방어력 ${v}% 무시` },
+  { id:'crit_lifesteal',name:'치유 흡정',     range:[2,8],   desc:(v)=>`치명타 시 최대 HP의 ${v}% 회복` },
+  { id:'firstblood',    name:'선공',          range:[10,40], desc:(v)=>`전투 첫 턴 데미지 +${v}%` },
+  { id:'stagger',       name:'경직',          range:[3,10],  desc:(v)=>`${v}% 확률로 적 행동 1턴 무효` },
+  { id:'cleave',        name:'관통타',        range:[5,14],  desc:(v)=>`매 공격이 적 방어력을 ${v} 영구 감소` }
 ];
 
 // 누적 perk (특수효과) — 전체 너프 적용
@@ -682,7 +682,7 @@ const PERKS = {
   rare: [
     { id:'cmb_r',  name:'연격술',     range:[4,8],  rarity:'rare',
       mods:(v)=>[{id:'doublestrike',value:v}] },
-    { id:'drn_r',  name:'흡수술',     range:[3,7],  rarity:'rare',
+    { id:'drn_r',  name:'흡수술',     range:[2,4],  rarity:'rare',
       mods:(v)=>[{id:'lifesteal',value:v}] },
     { id:'crt_r',  name:'급소술',     range:[3,6],  rarity:'rare',
       mods:(v)=>[{id:'crit_flat',value:v},{id:'critdmg_flat',value:20}] },
@@ -705,7 +705,7 @@ const PERKS = {
     { id:'exe_u',  name:'학살자',     range:[4,8],   rarity:'unique',
       mods:(v)=>[{id:'execute',value:v}] },
     { id:'flsh_u', name:'난도질',     range:[7,13],  rarity:'unique',
-      mods:(v)=>[{id:'doublestrike',value:v},{id:'lifesteal',value:5}] },
+      mods:(v)=>[{id:'doublestrike',value:v},{id:'lifesteal',value:3}] },
     { id:'tit_u',  name:'거인의 피',  range:[12,22], rarity:'unique',
       mods:(v)=>[{id:'hp_pct',value:v},{id:'def_pct',value:Math.floor(v/2)}] },
   ],
@@ -714,7 +714,7 @@ const PERKS = {
       mods:(v)=>[{id:'revive_count',value:1},{id:'revive_pct',value:v}] },
     { id:'thn_l',  name:'천둥의 분노',  range:[100,180],rarity:'legendary',
       mods:(v)=>[{id:'cycle3_dmg_pct',value:v}] },
-    { id:'vmp_l',  name:'진조의 갈증',  range:[12,22], rarity:'legendary',
+    { id:'vmp_l',  name:'진조의 갈증',  range:[7,14], rarity:'legendary',
       mods:(v)=>[{id:'lifesteal',value:v},{id:'crit_lifesteal',value:Math.floor(v/2)}] },
     { id:'frt_l',  name:'거인의 의지',  range:[20,40], rarity:'legendary',
       mods:(v)=>[{id:'hp_pct',value:v},{id:'def_pct',value:v}] },
@@ -1312,13 +1312,13 @@ function spriteBgPos(idx){
 function rollAffixValue(affix, rarity, level){
   const r = RARITY_INDEX[rarity];
   let val = rand(affix.range[0], affix.range[1]);
-  // 장비 레벨에 따라 옵션 수치도 스케일링
+  // 장비 레벨에 비례 — rarity 곱은 약하게 (rare에서도 너무 안 튀게)
   if (affix.type === 'pct'){
-    val = Math.floor(val * (1 + r * 0.10) * (1 + level * 0.006));
+    val = Math.floor(val * (1 + r * 0.07) * (1 + level * 0.005));
   } else if (affix.stat === 'hp' || affix.stat === 'atk' || affix.stat === 'def'){
-    val = Math.floor(val * (1 + r * 0.20) * (1 + level * 0.10));
+    val = Math.floor(val * (1 + r * 0.13) * (1 + level * 0.10));
   } else {
-    val = Math.floor(val * (1 + r * 0.12) * (1 + level * 0.015));
+    val = Math.floor(val * (1 + r * 0.08) * (1 + level * 0.015));
   }
   return Math.max(1, val);
 }
