@@ -256,6 +256,14 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   letter-spacing:1px;
 }
 .choice.has-bonus{box-shadow:0 0 12px rgba(94,219,122,.25)}
+
+.skip-reward-btn{
+  background:transparent; color:var(--dim);
+  border:1px dashed var(--border); padding:7px 18px;
+  font-family:inherit; font-size:12px; letter-spacing:1px;
+  cursor:pointer;
+}
+.skip-reward-btn:hover{color:var(--fg); border-color:var(--accent)}
 .choice .body{padding:10px 10px 12px; display:flex; flex-direction:column; flex:1}
 .choice .rarity{
   font-size:10px; letter-spacing:2px; text-align:center;
@@ -1919,8 +1927,21 @@ function showRewardModal(){
     <h2>보 상   획 득</h2>
     <div class="sub">3개 중 하나만 선택. 장비는 슬롯 교체, 특수효과는 누적</div>
     <div class="choices">${cards}</div>
+    <div class="modal-actions" style="text-align:center; margin-top:14px">
+      <button class="skip-reward-btn" onclick="skipReward()">× 모두 거절 (보상 안 받기)</button>
+    </div>
   `);
 }
+
+window.skipReward = function(){
+  if (!G.pendingReward) return;
+  log('보상 거절 — 다음 스테이지로', '');
+  G.pendingReward = null;
+  G.stage += 1;
+  hideModal();
+  saveGame();
+  startBattle();
+};
 
 function showGameOverModal(){
   const sum = `
