@@ -733,75 +733,123 @@ const SoundFx = (() => {
 })();
 
 /* ===========================================================
-   BGM (Web Audio API chiptune loop, no external files)
+   BGM (Web Audio API 8-bit fantasy loop)
 =========================================================== */
 const Bgm = (() => {
   let ctx = null;
+  let master = null;
   let muted = (localStorage.getItem('roguelite_bgm_muted') === '1');
   let playing = false;
   let nextLoopAt = 0;
   let loopHandle = null;
   const NOTE = {
+    'C2':65.41,'D2':73.42,'E2':82.41,'F2':87.31,'G2':98.00,'A2':110.00,'B2':123.47,
     'C3':130.81,'D3':146.83,'E3':164.81,'F3':174.61,'G3':196.00,'A3':220.00,'B3':246.94,
     'C4':261.63,'D4':293.66,'E4':329.63,'F4':349.23,'G4':392.00,'A4':440.00,'B4':493.88,
-    'C5':523.25,'D5':587.33,'E5':659.25,'F5':698.46,'G5':783.99,
+    'C5':523.25,'D5':587.33,'E5':659.25,'F5':698.46,'G5':783.99,'A5':880.00,
     '_':0
   };
-  // 어두운 던전 분위기 (Am 기반), 8박 × 4마디 = 32박
+  // 판타지 멜로디 — Am 키, 다양한 음 길이 (16/8/dotted8/4/dotted4/2분음표)
+  // 형식: [note, duration_in_quarters]
+  // 4마디 × 약 4박 = 16박, 한 quarter = 0.32s (BPM ~187 빠른 느낌이지만 실제 0.32s에 4분음표 = BPM 187, 박자감 빠름)
+  // 더 차분하게 quarter = 0.42s (BPM 143)
+  const QUARTER = 0.42;
+  // 마디 1: 영웅적 상행 → 마디 2: 하행 → 마디 3: dramatic dotted → 마디 4: 마무리
   const MELODY = [
-    'A4','_','C5','_','E5','_','C5','_','D5','_','C5','_','B4','_','A4','_',
-    'A4','_','C5','_','E5','_','D5','_','C5','_','B4','_','A4','_','G4','_',
-    'F4','_','A4','_','C5','_','A4','_','G4','_','F4','_','E4','_','D4','_',
-    'E4','_','G4','_','B4','_','G4','_','A4','_','C5','_','B4','_','A4','_'
+    // 마디 1 (Am)
+    ['A4', 0.5], ['B4', 0.5], ['C5', 1.0], ['E5', 1.5], ['D5', 0.5],
+    // 마디 2 (F)
+    ['C5', 0.75], ['B4', 0.25], ['A4', 1.0], ['G4', 1.0], ['A4', 1.0],
+    // 마디 3 (G → E)
+    ['E5', 0.5], ['D5', 0.5], ['C5', 0.5], ['B4', 0.5], ['A4', 1.5], ['G4', 0.5],
+    // 마디 4 (Am → E)
+    ['F4', 0.75], ['G4', 0.25], ['A4', 1.0], ['_', 0.5], ['E4', 0.5], ['A4', 1.0],
+    // 마디 5 — variation 위로 점프
+    ['C5', 0.5], ['E5', 0.5], ['A5', 1.0], ['G5', 1.0], ['F5', 1.0],
+    // 마디 6
+    ['E5', 0.75], ['D5', 0.25], ['C5', 1.0], ['B4', 1.0], ['A4', 1.0],
+    // 마디 7 — dramatic descent
+    ['G4', 0.5], ['F4', 0.5], ['E4', 1.0], ['D4', 1.0], ['C4', 1.0],
+    // 마디 8 — resolve
+    ['D4', 0.5], ['E4', 0.5], ['A4', 2.0], ['_', 1.0]
   ];
+  // 베이스라인 — 마디당 일정한 코드 톤 + 살짝 walking
   const BASS = [
-    'A3','_','A3','_','A3','_','E3','_','A3','_','A3','_','A3','_','E3','_',
-    'A3','_','A3','_','A3','_','E3','_','A3','_','A3','_','A3','_','E3','_',
-    'F3','_','F3','_','F3','_','C3','_','F3','_','F3','_','F3','_','C3','_',
-    'C3','_','C3','_','G3','_','G3','_','A3','_','A3','_','A3','_','E3','_'
+    // 마디 1 (Am): A2 - E2 - A2 - C3
+    ['A2', 1.0], ['E2', 1.0], ['A2', 1.0], ['C3', 1.0],
+    // 마디 2 (F): F2 - C3 - F2 - A2
+    ['F2', 1.0], ['C3', 1.0], ['F2', 1.0], ['A2', 1.0],
+    // 마디 3 (C → E): C2 - G2 - E2 - B2
+    ['C3', 1.0], ['G2', 1.0], ['E2', 1.0], ['B2', 1.0],
+    // 마디 4 (Am → E): A2 - E2 - A2 - E2
+    ['A2', 1.0], ['E2', 1.0], ['A2', 1.0], ['E2', 1.0],
+    // 마디 5 (F): F2 - C3 - F2 - A2
+    ['F2', 1.0], ['C3', 1.0], ['F2', 1.0], ['A2', 1.0],
+    // 마디 6 (Am): A2 - E2 - A2 - C3
+    ['A2', 1.0], ['E2', 1.0], ['A2', 1.0], ['C3', 1.0],
+    // 마디 7 (Dm → C): D2 - A2 - C2 - G2
+    ['D2', 1.0], ['A2', 1.0], ['C3', 1.0], ['G2', 1.0],
+    // 마디 8 (Am): A2 - E2 - A2 - A2
+    ['A2', 1.0], ['E2', 1.0], ['A2', 2.0]
   ];
-  const BEAT_DUR = 0.18;
+  // 아르페지오/타악 패턴 — 마디 박자 강조용 (4분 단위)
   function getCtx(){
     if (!ctx){
-      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
-      catch(e) { return null; }
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain();
+        master.gain.value = muted ? 0 : 0.7;
+        master.connect(ctx.destination);
+      } catch(e) { return null; }
     }
     return ctx;
   }
   function tick(t, freq, type, vol, dur){
-    const c = ctx;
-    const o = c.createOscillator();
-    const g = c.createGain();
+    if (!ctx || !master) return;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.005);
-    g.gain.linearRampToValueAtTime(0, t + dur * 0.95);
-    o.connect(g).connect(c.destination);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.95);
+    o.connect(g).connect(master);
     o.start(t);
-    o.stop(t + dur);
+    o.stop(t + dur + 0.02);
+  }
+  function totalDuration(track){
+    let s = 0; for (const [,d] of track) s += d * QUARTER; return s;
+  }
+  function playTrack(track, t0, type, vol){
+    let t = t0;
+    for (const [note, dq] of track){
+      const dur = dq * QUARTER;
+      const freq = NOTE[note];
+      if (freq > 0) tick(t, freq, type, vol, dur);
+      t += dur;
+    }
+    return t;
   }
   function scheduleLoop(){
-    if (!playing || muted) return;
+    if (!playing) return;
     const c = getCtx(); if (!c) return;
     const start = Math.max(c.currentTime + 0.05, nextLoopAt);
-    const len = MELODY.length * BEAT_DUR;
-    for (let i=0; i<MELODY.length; i++){
-      const t = start + i * BEAT_DUR;
-      const mf = NOTE[MELODY[i]];
-      if (mf > 0) tick(t, mf, 'square', 0.025, BEAT_DUR * 0.9);
-      const bf = NOTE[BASS[i]];
-      if (bf > 0) tick(t, bf, 'triangle', 0.04, BEAT_DUR * 0.9);
-    }
+    playTrack(MELODY, start, 'square',   0.16);
+    playTrack(BASS,   start, 'triangle', 0.30);
+    const len = totalDuration(MELODY);
     nextLoopAt = start + len;
-    // 다음 loop를 약간 미리 예약
-    loopHandle = setTimeout(scheduleLoop, (len - 0.2) * 1000);
+    loopHandle = setTimeout(scheduleLoop, (len - 0.25) * 1000);
   }
   return {
     start(){
-      if (muted || playing) return;
+      if (playing) return;
       const c = getCtx(); if (!c) return;
       if (c.state === 'suspended') c.resume();
+      // master gain 즉시 정상 음량으로
+      if (master){
+        master.gain.cancelScheduledValues(c.currentTime);
+        master.gain.setValueAtTime(muted ? 0 : 0.7, c.currentTime);
+      }
       playing = true;
       nextLoopAt = 0;
       scheduleLoop();
@@ -809,12 +857,21 @@ const Bgm = (() => {
     stop(){
       playing = false;
       if (loopHandle){ clearTimeout(loopHandle); loopHandle = null; }
+      // 이미 예약된 oscillator들을 master gain으로 즉시 차단
+      if (ctx && master){
+        master.gain.cancelScheduledValues(ctx.currentTime);
+        master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
+        master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.05);
+      }
     },
     setMuted(m){
       muted = !!m;
       localStorage.setItem('roguelite_bgm_muted', muted ? '1' : '0');
-      if (muted) this.stop();
-      else this.start();
+      if (muted){
+        this.stop();
+      } else {
+        this.start();
+      }
     },
     isMuted(){ return muted; }
   };
