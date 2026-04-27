@@ -1112,10 +1112,17 @@ function genItem(slot, rarity, stage){
     options: []
   };
 
-  // 1차 스탯 (모든 장비) — 레벨에 비례해 크게 증가
+  // 1차 스탯 (모든 장비) — 레벨에 비례해 크게 증가 + 레벨 기반 최소값 보장
   let baseVal = rand(slotDef.range[0], slotDef.range[1]);
-  baseVal = Math.floor(baseVal * (1 + RARITY_INDEX[rarity] * 0.18) * (1 + level * 0.10));
-  if (slotDef.primary === 'hp')   baseVal = Math.max(8, baseVal);
+  baseVal = Math.round(baseVal * (1 + RARITY_INDEX[rarity] * 0.20) * (1 + level * 0.13));
+  // 일반 등급 + 작은 base 조합으로 너무 작아지는 거 방지 (lv.5 라운드 def 1 같은 사례)
+  const MIN_BY_STAT = {
+    atk:  Math.max(2, Math.ceil(level * 0.5)),
+    def:  Math.max(1, Math.ceil(level * 0.35)),
+    hp:   Math.max(8, Math.ceil(level * 1.6)),
+    crit: 1
+  };
+  baseVal = Math.max(baseVal, MIN_BY_STAT[slotDef.primary] || 1);
   if (slotDef.primary === 'crit') baseVal = clamp(baseVal, 1, 25);
 
   item.mods.push({ id: slotDef.primary + '_flat', value: baseVal });
