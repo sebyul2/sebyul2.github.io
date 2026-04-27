@@ -586,11 +586,11 @@ function rarityWeights(stage){
 }
 
 const SLOTS = [
-  { id:'weapon',  name:'무기', icon:'⚔', primary:'atk', range:[4,10] },
-  { id:'armor',   name:'갑옷', icon:'▣', primary:'def', range:[2,6]  },
-  { id:'helmet',  name:'투구', icon:'∩', primary:'hp',  range:[10,22] },
-  { id:'shield',  name:'방패', icon:'◇', primary:'def', range:[1,5]  },
-  { id:'amulet',  name:'악세', icon:'○', primary:'crit',range:[2,4]  }
+  { id:'weapon',  name:'무기', icon:'⚔', primary:'atk', range:[4,10],  weight:32 },
+  { id:'armor',   name:'갑옷', icon:'▣', primary:'def', range:[2,6],   weight:17 },
+  { id:'helmet',  name:'투구', icon:'∩', primary:'hp',  range:[10,22], weight:17 },
+  { id:'shield',  name:'방패', icon:'◇', primary:'def', range:[1,5],   weight:17 },
+  { id:'amulet',  name:'악세', icon:'○', primary:'crit',range:[2,4],   weight:17 }
 ];
 const SLOT_BY_ID = Object.fromEntries(SLOTS.map(s => [s.id, s]));
 
@@ -1956,7 +1956,7 @@ function generateRewards(stage){
     const rarity = weightedChoice(weights).id;
     const isItem = Math.random() < 0.55;
     if (isItem){
-      const slot = choice(SLOTS).id;
+      const slot = weightedChoice(SLOTS).id;
       choices.push(genItem(slot, rarity, stage));
     } else {
       choices.push(genPerk(rarity, stage));
