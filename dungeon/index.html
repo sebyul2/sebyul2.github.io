@@ -641,7 +641,8 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
     <div class="stage-info">층 <span id="stage-num">1</span> / 100</div>
     <div class="title">심 연 의   1 0 0 층</div>
     <div>
-      <button id="btn-sound" title="사운드 토글">🔊</button>
+      <button id="btn-bgm" title="BGM 토글">🎵</button>
+      <button id="btn-sound" title="효과음 토글">🔊</button>
       <button id="btn-inv">[I] 인벤</button>
       <button id="btn-restart">재시작</button>
     </div>
@@ -732,6 +733,94 @@ const SoundFx = (() => {
 })();
 
 /* ===========================================================
+   BGM (Web Audio API chiptune loop, no external files)
+=========================================================== */
+const Bgm = (() => {
+  let ctx = null;
+  let muted = (localStorage.getItem('roguelite_bgm_muted') === '1');
+  let playing = false;
+  let nextLoopAt = 0;
+  let loopHandle = null;
+  const NOTE = {
+    'C3':130.81,'D3':146.83,'E3':164.81,'F3':174.61,'G3':196.00,'A3':220.00,'B3':246.94,
+    'C4':261.63,'D4':293.66,'E4':329.63,'F4':349.23,'G4':392.00,'A4':440.00,'B4':493.88,
+    'C5':523.25,'D5':587.33,'E5':659.25,'F5':698.46,'G5':783.99,
+    '_':0
+  };
+  // 어두운 던전 분위기 (Am 기반), 8박 × 4마디 = 32박
+  const MELODY = [
+    'A4','_','C5','_','E5','_','C5','_','D5','_','C5','_','B4','_','A4','_',
+    'A4','_','C5','_','E5','_','D5','_','C5','_','B4','_','A4','_','G4','_',
+    'F4','_','A4','_','C5','_','A4','_','G4','_','F4','_','E4','_','D4','_',
+    'E4','_','G4','_','B4','_','G4','_','A4','_','C5','_','B4','_','A4','_'
+  ];
+  const BASS = [
+    'A3','_','A3','_','A3','_','E3','_','A3','_','A3','_','A3','_','E3','_',
+    'A3','_','A3','_','A3','_','E3','_','A3','_','A3','_','A3','_','E3','_',
+    'F3','_','F3','_','F3','_','C3','_','F3','_','F3','_','F3','_','C3','_',
+    'C3','_','C3','_','G3','_','G3','_','A3','_','A3','_','A3','_','E3','_'
+  ];
+  const BEAT_DUR = 0.18;
+  function getCtx(){
+    if (!ctx){
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return null; }
+    }
+    return ctx;
+  }
+  function tick(t, freq, type, vol, dur){
+    const c = ctx;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.linearRampToValueAtTime(0, t + dur * 0.95);
+    o.connect(g).connect(c.destination);
+    o.start(t);
+    o.stop(t + dur);
+  }
+  function scheduleLoop(){
+    if (!playing || muted) return;
+    const c = getCtx(); if (!c) return;
+    const start = Math.max(c.currentTime + 0.05, nextLoopAt);
+    const len = MELODY.length * BEAT_DUR;
+    for (let i=0; i<MELODY.length; i++){
+      const t = start + i * BEAT_DUR;
+      const mf = NOTE[MELODY[i]];
+      if (mf > 0) tick(t, mf, 'square', 0.025, BEAT_DUR * 0.9);
+      const bf = NOTE[BASS[i]];
+      if (bf > 0) tick(t, bf, 'triangle', 0.04, BEAT_DUR * 0.9);
+    }
+    nextLoopAt = start + len;
+    // 다음 loop를 약간 미리 예약
+    loopHandle = setTimeout(scheduleLoop, (len - 0.2) * 1000);
+  }
+  return {
+    start(){
+      if (muted || playing) return;
+      const c = getCtx(); if (!c) return;
+      if (c.state === 'suspended') c.resume();
+      playing = true;
+      nextLoopAt = 0;
+      scheduleLoop();
+    },
+    stop(){
+      playing = false;
+      if (loopHandle){ clearTimeout(loopHandle); loopHandle = null; }
+    },
+    setMuted(m){
+      muted = !!m;
+      localStorage.setItem('roguelite_bgm_muted', muted ? '1' : '0');
+      if (muted) this.stop();
+      else this.start();
+    },
+    isMuted(){ return muted; }
+  };
+})();
+
+/* ===========================================================
    UTILITIES
 =========================================================== */
 const $ = (id) => document.getElementById(id);
@@ -785,13 +874,13 @@ function rarityWeights(stage){
   const t = stage / 100;
   return RARITIES.map(r => {
     let w = r.baseWeight;
-    // 후반으로 갈수록 common/magic 급감, rare 이상 큰 폭 상승
-    if (r.id === 'common')         w *= Math.max(0.04, 1 - t * 1.7);
-    else if (r.id === 'magic')     w *= Math.max(0.35, 1 - t * 0.7);
-    else if (r.id === 'rare')      w *= 1 + t * 1.2;
-    else if (r.id === 'unique')    w *= 1 + t * 1.8;
-    else if (r.id === 'legendary') w *= 1 + t * 3.5;
-    else if (r.id === 'mythic')    w *= 1 + t * 5.5;
+    // 후반으로 갈수록 common/magic 감소, 상위 등급 등장률 완만 상승 (rare 비중 너프)
+    if (r.id === 'common')         w *= Math.max(0.06, 1 - t * 1.5);
+    else if (r.id === 'magic')     w *= Math.max(0.40, 1 - t * 0.6);
+    else if (r.id === 'rare')      w *= 1 + t * 0.5;
+    else if (r.id === 'unique')    w *= 1 + t * 1.0;
+    else if (r.id === 'legendary') w *= 1 + t * 2.0;
+    else if (r.id === 'mythic')    w *= 1 + t * 3.0;
     return { ...r, weight: w };
   });
 }
@@ -1722,9 +1811,9 @@ function genEnemy(stage){
   const isFinal = stage === 100;
 
   // levelScale 동일 곡선에 비율 적용.
-  // 1~10층: 평탄 (1.0), 11층부터 가속(+0.013/층). 초반엔 사용자가 무난히 진입.
+  // 1~10층: 평탄 (1.0), 11층부터 지수 가속(1.012^층). 후반으로 갈수록 더 가파름.
   const ls = levelScale(stage);
-  const baseMult = stage <= 10 ? 1.0 : 1.0 + (stage - 10) * 0.013;
+  const baseMult = stage <= 10 ? 1.0 : Math.pow(1.012, stage - 10);
   const eScale = ls * baseMult;
   const baseHp  = Math.round(40  * eScale);
   const baseAtk = Math.round(3.5 * eScale);
@@ -3515,10 +3604,10 @@ function bindKeys(){
       hideModal();
     }
   });
-  $('btn-attack').addEventListener('click', () => { SoundFx.resume(); beginCombat(); });
+  $('btn-attack').addEventListener('click', () => { SoundFx.resume(); Bgm.start(); beginCombat(); });
   $('btn-inv').addEventListener('click', showInventoryModal);
   $('btn-restart').addEventListener('click', confirmRestart);
-  // 사운드 토글
+  // 효과음 토글
   const sndBtn = $('btn-sound');
   if (sndBtn){
     const refresh = () => { sndBtn.textContent = SoundFx.isMuted() ? '🔇' : '🔊'; };
@@ -3528,6 +3617,16 @@ function bindKeys(){
       SoundFx.setMuted(!SoundFx.isMuted());
       refresh();
       if (!SoundFx.isMuted()) SoundFx.select();
+    });
+  }
+  // BGM 토글
+  const bgmBtn = $('btn-bgm');
+  if (bgmBtn){
+    const refresh = () => { bgmBtn.textContent = Bgm.isMuted() ? '🎶' : '🎵'; bgmBtn.style.opacity = Bgm.isMuted() ? '0.4' : '1'; };
+    refresh();
+    bgmBtn.addEventListener('click', () => {
+      Bgm.setMuted(!Bgm.isMuted());
+      refresh();
     });
   }
 }
@@ -3553,22 +3652,33 @@ function init(){
     G.battle.rage = G.battle.rage || 0;
     G.battle.firstHitBlocked = G.battle.firstHitBlocked || false;
     G.battle.nextCritGuaranteed = G.battle.nextCritGuaranteed || false;
+    // 1) 보상 선택 중이었던 경우 — battle 상태와 무관하게 보상 모달 우선 복구
+    if (G.pendingReward && Array.isArray(G.pendingReward) && G.pendingReward.length){
+      render();
+      showRewardModal();
+      log('이어서 진행한다 (보상 선택).', 'system');
+      return;
+    }
+    // 2) 적이 없거나 전투 비활성 → 새 전투 시작
     if (!G.battle.enemy || !G.battle.active){
       startBattle();
-    } else {
-      // sprite/art는 다시 생성 (저장에서 함수/이미지 복원 불완전)
-      const e = genEnemy(G.stage);
-      e.hp = G.battle.enemy.hp ?? e.maxHp;
-      e.bleed = G.battle.enemy.bleed || 0;
-      e.armorBroken = G.battle.enemy.armorBroken || 0;
-      // 기존 이름/sprite 유지가 가능하면 유지
-      if (G.battle.enemy.spriteIdx != null) e.spriteIdx = G.battle.enemy.spriteIdx;
-      if (G.battle.enemy.name) e.name = G.battle.enemy.name;
-      G.battle.enemy = e;
-      render();
-      if (G.pendingReward) showRewardModal();
+      log('이어서 진행한다.', 'system');
+      return;
     }
-    log('이어서 진행한다.', 'system');
+    // 3) 전투 진행 중이었던 경우 — sprite/art 재구성 후 진행 재개
+    const e = genEnemy(G.stage);
+    e.hp = G.battle.enemy.hp ?? e.maxHp;
+    e.bleed = G.battle.enemy.bleed || 0;
+    e.armorBroken = G.battle.enemy.armorBroken || 0;
+    if (G.battle.enemy.spriteIdx != null) e.spriteIdx = G.battle.enemy.spriteIdx;
+    if (G.battle.enemy.name) e.name = G.battle.enemy.name;
+    G.battle.enemy = e;
+    render();
+    log('이어서 진행한다 (전투).', 'system');
+    // 자동 진행 중이었으면 setTimeout 재개
+    if (G.battle.started && !G.lost && !G.won){
+      setTimeout(attack, TURN_INTERVAL_MS);
+    }
   } else {
     restart();
   }
