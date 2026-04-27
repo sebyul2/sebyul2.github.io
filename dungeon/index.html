@@ -2369,13 +2369,19 @@ function showRewardModal(){
       const bonusHtml = r.bonusHeal
         ? `<div class="bonus-badge">♥</div><div class="bonus-heal">+${r.bonusHeal} HP 보너스 회복</div>`
         : '';
+      const banner = isBoss ? '★ 보 스   전 리 품 ★' : '▣ 장 비 ▣';
+      const cardCls = isBoss ? 'choice type-item type-boss-item' : 'choice type-item';
+      const rarityHtml = isBoss
+        ? `<div class="rarity" style="color:#ffae5c">★ 보스 드랍 · Lv.${r.level||r.stage||1}</div>`
+        : `<div class="rarity" style="color:${rDef.color}">${rDef.name} · Lv.${r.level||r.stage||1}</div>`;
+      const nameColor = isBoss ? '#ffd28a' : rDef.color;
       return `
-        <div class="choice type-item${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
-          <div class="type-banner">▣ 장 비 ▣</div>
+        <div class="${cardCls}${r.bonusHeal?' has-bonus':''}" data-idx="${idx}" onclick="chooseReward(${idx})">
+          <div class="type-banner">${banner}</div>
           <div class="body">
-            <div class="rarity" style="color:${rDef.color}">${rDef.name}</div>
+            ${rarityHtml}
             <div class="slot-tag">${slotDef.icon} ${slotName} ${slotDef.icon}</div>
-            <div class="name" style="color:${rDef.color}">${r.name}</div>
+            <div class="name" style="color:${nameColor}">${r.name}</div>
             <ul class="options">${optHtml}</ul>
             ${compareHtml}
             ${bonusHtml}
