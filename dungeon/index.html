@@ -248,6 +248,18 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   background:linear-gradient(180deg,#2a1a3a,#180828);
   border-color:#7c5aa8;
 }
+.choice.type-boss-item{
+  border-color:#ffae5c !important;
+  box-shadow:0 0 22px rgba(255,174,92,.55), inset 0 0 0 1px rgba(255,200,120,.4);
+  background:linear-gradient(180deg, rgba(60,40,15,.4), rgba(40,20,8,.6));
+}
+.choice.type-boss-item .type-banner{
+  color:#ffe2b6;
+  background:linear-gradient(180deg,#7a4a1a,#3a1808);
+  border-color:#ffae5c;
+  text-shadow:0 0 8px rgba(255,200,120,.7);
+}
+.choice.type-boss-item .slot-tag{color:#ffd28a}
 .choice.type-boss{
   border-color:#ffae5c !important;
   box-shadow:0 0 18px rgba(255,174,92,.35), inset 0 0 0 1px rgba(255,200,120,.3);
@@ -569,7 +581,9 @@ const RARITIES = [
   { id:'mythic',    name:'신화',   color:'#d05ce3', extras:5, baseWeight:1   }
 ];
 const RARITY_BY_ID = Object.fromEntries(RARITIES.map(r => [r.id, r]));
+RARITY_BY_ID['boss'] = { id:'boss', name:'보스', color:'#ffae5c', extras:0, baseWeight:0 };
 const RARITY_INDEX = Object.fromEntries(RARITIES.map((r,i) => [r.id, i]));
+RARITY_INDEX['boss'] = 6; // mythic 위 가상 등급
 
 function rarityWeights(stage){
   const t = stage / 100;
@@ -783,8 +797,124 @@ const ENEMY_TIERS = [
   { normals: [66, 75, 85, 89, 93, 95, 96, 97], boss: 99 }
 ];
 
-// === 보스 전용 아이템 풀 (보스 처치 시 등장) ===
-const BOSS_ITEMS = [
+// === 보스 층별 전용 장비 드랍 풀 (10/20/.../100) — 각 층 6개씩, 총 60개 ===
+const BOSS_DROPS = {
+  10: [
+    { name:'폭풍의 단검',     slot:'weapon', primaryVal:25,  extras:[{id:'crit_flat',v:8},{id:'lifesteal',v:10}] },
+    { name:'화염의 갑옷',     slot:'armor',  primaryVal:18,  extras:[{id:'hp_flat',v:50},{id:'thorns',v:15}] },
+    { name:'강철 투구',       slot:'helmet', primaryVal:80,  extras:[{id:'def_flat',v:8},{id:'evade_flat',v:5}] },
+    { name:'거인의 방패',     slot:'shield', primaryVal:14,  extras:[{id:'hp_flat',v:30},{id:'dmg_reduction',v:8}] },
+    { name:'광휘의 부적',     slot:'amulet', primaryVal:14,  extras:[{id:'atk_flat',v:10},{id:'lifesteal',v:8}] },
+    { name:'야수의 송곳니',   slot:'amulet', primaryVal:12,  extras:[{id:'atk_flat',v:8},{id:'doublestrike',v:12}] }
+  ],
+  20: [
+    { name:'그림자 검',       slot:'weapon', primaryVal:38,  extras:[{id:'doublestrike',v:15},{id:'evade_counter',v:30}] },
+    { name:'룬 갑옷',         slot:'armor',  primaryVal:25,  extras:[{id:'hp_flat',v:80},{id:'regen_flat',v:5}] },
+    { name:'폭풍의 헬름',     slot:'helmet', primaryVal:120, extras:[{id:'evade_flat',v:8},{id:'crit_flat',v:5}] },
+    { name:'가시의 방패',     slot:'shield', primaryVal:22,  extras:[{id:'thorns',v:25},{id:'dmg_reduction',v:10}] },
+    { name:'늑대의 발톱',     slot:'amulet', primaryVal:20,  extras:[{id:'atk_flat',v:15},{id:'crit_flat',v:10},{id:'lifesteal',v:12}] },
+    { name:'사슬의 부적',     slot:'amulet', primaryVal:18,  extras:[{id:'atk_flat',v:12},{id:'doublestrike',v:18},{id:'evade_flat',v:5}] }
+  ],
+  30: [
+    { name:'심연의 검',       slot:'weapon', primaryVal:55,  extras:[{id:'crit_flat',v:15},{id:'critdmg_flat',v:60},{id:'pierce',v:20}] },
+    { name:'어둠의 갑주',     slot:'armor',  primaryVal:35,  extras:[{id:'hp_flat',v:120},{id:'thorns',v:30},{id:'flat_dr',v:2}] },
+    { name:'룬 헬름',         slot:'helmet', primaryVal:170, extras:[{id:'def_flat',v:10},{id:'crit_flat',v:8},{id:'regen_flat',v:8}] },
+    { name:'영혼의 방패',     slot:'shield', primaryVal:30,  extras:[{id:'dmg_reduction',v:15},{id:'evade_flat',v:8}] },
+    { name:'드래곤의 비늘',   slot:'amulet', primaryVal:25,  extras:[{id:'hp_pct',v:15},{id:'def_pct',v:15}] },
+    { name:'기사의 인장',     slot:'amulet', primaryVal:22,  extras:[{id:'atk_pct',v:18},{id:'crit_flat',v:12},{id:'firstblood',v:50}] }
+  ],
+  40: [
+    { name:'서리의 클레이모어',slot:'weapon', primaryVal:75,  extras:[{id:'doublestrike',v:25},{id:'lifesteal',v:18},{id:'crit_lifesteal',v:15}] },
+    { name:'저주받은 갑옷',   slot:'armor',  primaryVal:48,  extras:[{id:'hp_flat',v:180},{id:'low_hp_atk',v:30},{id:'flat_dr',v:3}] },
+    { name:'전설의 헬름',     slot:'helmet', primaryVal:240, extras:[{id:'crit_flat',v:15},{id:'critdmg_flat',v:80},{id:'evade_flat',v:10}] },
+    { name:'무한의 방패',     slot:'shield', primaryVal:40,  extras:[{id:'dmg_reduction',v:20},{id:'thorns',v:40},{id:'first_hit_block',v:1}] },
+    { name:'영원의 부적',     slot:'amulet', primaryVal:32,  extras:[{id:'regen_pct',v:5},{id:'lifesteal',v:20}] },
+    { name:'심판의 인장',     slot:'amulet', primaryVal:28,  extras:[{id:'execute',v:8},{id:'pierce',v:30},{id:'bossbane',v:30}] }
+  ],
+  50: [
+    { name:'천둥의 망치',     slot:'weapon', primaryVal:100, extras:[{id:'cycle3_dmg_pct',v:120},{id:'crit_flat',v:18}] },
+    { name:'심연의 갑주',     slot:'armor',  primaryVal:62,  extras:[{id:'hp_flat',v:250},{id:'low_hp_dr',v:30},{id:'thorns',v:35}] },
+    { name:'왕의 관',         slot:'helmet', primaryVal:320, extras:[{id:'crit_flat',v:20},{id:'critdmg_flat',v:100},{id:'lifesteal',v:15}] },
+    { name:'성스러운 방패',   slot:'shield', primaryVal:50,  extras:[{id:'dmg_reduction',v:25},{id:'first_hit_block',v:1},{id:'cycle5_freeze',v:1}] },
+    { name:'용의 심장',       slot:'amulet', primaryVal:40,  extras:[{id:'hp_pct',v:25},{id:'atk_pct',v:20}] },
+    { name:'어둠의 인장',     slot:'amulet', primaryVal:36,  extras:[{id:'doublestrike',v:30},{id:'crit_chain',v:1}] }
+  ],
+  60: [
+    { name:'폭풍의 양손검',   slot:'weapon', primaryVal:130, extras:[{id:'doublestrike',v:35},{id:'lifesteal',v:25},{id:'true_dmg_per_hit_pct',v:3}] },
+    { name:'룬마스터의 갑옷', slot:'armor',  primaryVal:78,  extras:[{id:'hp_flat',v:350},{id:'regen_pct',v:5},{id:'evade_flat',v:10}] },
+    { name:'드래곤 헬름',     slot:'helmet', primaryVal:420, extras:[{id:'crit_flat',v:25},{id:'evade_flat',v:12},{id:'firstblood',v:100}] },
+    { name:'영원의 방패',     slot:'shield', primaryVal:62,  extras:[{id:'dmg_reduction',v:30},{id:'thorns',v:50},{id:'flat_dr',v:5}] },
+    { name:'시간의 부적',     slot:'amulet', primaryVal:48,  extras:[{id:'cycle5_freeze',v:1},{id:'evade_flat',v:15}] },
+    { name:'학살자의 인장',   slot:'amulet', primaryVal:42,  extras:[{id:'execute',v:12},{id:'pierce',v:40},{id:'low_hp_atk',v:50}] }
+  ],
+  70: [
+    { name:'심연의 대검',     slot:'weapon', primaryVal:165, extras:[{id:'critdmg_flat',v:150},{id:'crit_flat',v:25},{id:'pierce',v:35}] },
+    { name:'타이탄의 갑옷',   slot:'armor',  primaryVal:95,  extras:[{id:'hp_flat',v:480},{id:'def_pct',v:30},{id:'low_hp_dr',v:50}] },
+    { name:'천공의 관',       slot:'helmet', primaryVal:540, extras:[{id:'crit_flat',v:30},{id:'critdmg_flat',v:120},{id:'evade_flat',v:15}] },
+    { name:'무적의 방벽',     slot:'shield', primaryVal:75,  extras:[{id:'dmg_reduction',v:35},{id:'cycle7_invuln',v:1},{id:'first_hit_block',v:1}] },
+    { name:'영혼 수확자',     slot:'amulet', primaryVal:56,  extras:[{id:'on_kill_atk_perm',v:1},{id:'on_kill_max_hp',v:5}] },
+    { name:'폭주의 인장',     slot:'amulet', primaryVal:48,  extras:[{id:'rage_per_turn',v:5},{id:'low_hp_crit',v:50}] }
+  ],
+  80: [
+    { name:'우주의 검',       slot:'weapon', primaryVal:210, extras:[{id:'doublestrike',v:45},{id:'true_dmg_per_hit_pct',v:5},{id:'lifesteal',v:30}] },
+    { name:'심연의 흑갑',     slot:'armor',  primaryVal:115, extras:[{id:'hp_pct',v:40},{id:'def_pct',v:40},{id:'thorns',v:60}] },
+    { name:'영원의 왕관',     slot:'helmet', primaryVal:680, extras:[{id:'crit_flat',v:35},{id:'lifesteal',v:25},{id:'crit_lifesteal',v:25}] },
+    { name:'창세의 방패',     slot:'shield', primaryVal:90,  extras:[{id:'dmg_reduction',v:40},{id:'cycle5_freeze',v:1},{id:'flat_dr',v:8}] },
+    { name:'운명의 부적',     slot:'amulet', primaryVal:65,  extras:[{id:'crit_chain',v:1},{id:'crit_lifesteal',v:25}] },
+    { name:'천멸의 인장',     slot:'amulet', primaryVal:55,  extras:[{id:'execute',v:18},{id:'true_dmg_per_hit_pct',v:6}] }
+  ],
+  90: [
+    { name:'멸망의 검',       slot:'weapon', primaryVal:265, extras:[{id:'critdmg_flat',v:200},{id:'crit_flat',v:30},{id:'true_dmg_per_hit_pct',v:8}] },
+    { name:'고대신의 갑옷',   slot:'armor',  primaryVal:138, extras:[{id:'hp_pct',v:50},{id:'flat_dr',v:10},{id:'regen_pct',v:8}] },
+    { name:'심연의 관',       slot:'helmet', primaryVal:840, extras:[{id:'crit_flat',v:40},{id:'critdmg_flat',v:150},{id:'lifesteal',v:30}] },
+    { name:'시간의 방패',     slot:'shield', primaryVal:110, extras:[{id:'dmg_reduction',v:45},{id:'cycle7_invuln',v:1},{id:'cycle5_freeze',v:1}] },
+    { name:'분노의 화신',     slot:'amulet', primaryVal:78,  extras:[{id:'rage_per_turn',v:8},{id:'low_hp_atk',v:80},{id:'low_hp_crit',v:50}] },
+    { name:'영혼 흡수자',     slot:'amulet', primaryVal:65,  extras:[{id:'on_kill_atk_perm',v:2},{id:'on_kill_max_hp',v:10},{id:'on_kill_next_hp_pct',v:15}] }
+  ],
+  100: [
+    { name:'창세의 검',       slot:'weapon', primaryVal:330, extras:[{id:'always_crit',v:1},{id:'pierce',v:50},{id:'true_dmg_per_hit_pct',v:10}] },
+    { name:'무한의 갑주',     slot:'armor',  primaryVal:165, extras:[{id:'hp_pct',v:60},{id:'dmg_reduction',v:30},{id:'flat_dr',v:15}] },
+    { name:'신의 관',         slot:'helmet', primaryVal:1000,extras:[{id:'crit_flat',v:50},{id:'critdmg_flat',v:200},{id:'lifesteal',v:40}] },
+    { name:'태초의 방벽',     slot:'shield', primaryVal:135, extras:[{id:'dmg_reduction',v:50},{id:'first_hit_block',v:1},{id:'revive_count',v:1},{id:'revive_pct',v:80}] },
+    { name:'심연황의 인장',   slot:'amulet', primaryVal:95,  extras:[{id:'execute',v:25},{id:'crit_chain',v:1},{id:'true_dmg_per_hit_pct',v:8}] },
+    { name:'영원의 화신',     slot:'amulet', primaryVal:85,  extras:[{id:'on_kill_atk_perm',v:3},{id:'on_kill_max_hp',v:15},{id:'rage_per_turn',v:10}] }
+  ]
+};
+
+function genBossItem(stage){
+  const pool = BOSS_DROPS[stage];
+  if (!pool || !pool.length) return null;
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+  const slotDef = SLOT_BY_ID[tpl.slot];
+  const item = {
+    type: 'item',
+    slot: tpl.slot,
+    rarity: 'boss',
+    level: stage,
+    stage,
+    name: tpl.name,
+    isBossItem: true,
+    mods: [{ id: slotDef.primary + '_flat', value: tpl.primaryVal }],
+    options: [{ kind:'primary', label: `${STAT_NAMES[slotDef.primary]} +${tpl.primaryVal}${slotDef.primary==='crit'?'%':''}` }]
+  };
+  for (const ext of tpl.extras){
+    item.mods.push({ id: ext.id, value: ext.v });
+    const aff = BASIC_AFFIXES.find(a => a.id === ext.id);
+    if (aff){
+      item.options.push({ kind:'basic', label: affixLabel(aff, ext.v) });
+    } else {
+      item.options.push({
+        kind:'special',
+        label: describeMod({id:ext.id, value:ext.v}),
+        desc: modExplain(ext.id) || ''
+      });
+    }
+  }
+  return item;
+}
+
+// 옛 BOSS_ITEMS — 사용 안 함 (특수효과 → 장비로 변경됨)
+const _BOSS_ITEMS_DEPRECATED = [
   { id:'soulreap',     name:'영혼 채집자',     desc:'적 처치 시 영구 공격력 +2',
     mods:[{id:'on_kill_atk_perm',value:2}] },
   { id:'bossbane',     name:'보스 사냥꾼',     desc:'보스에게 +60% 데미지',
@@ -1922,30 +2052,17 @@ function endBattle(playerWon){
 =========================================================== */
 
 function generateRewards(stage){
-  // 보스 처치 시: BOSS_ITEMS 풀에서 3개 무작위 (중복 없이)
+  // 보스 처치 시: 그 층 전용 풀에서 1개만 — 장비 형태
   if (G.battle.enemy && G.battle.enemy.isBoss){
-    const pool = [...BOSS_ITEMS];
-    const choices = [];
-    for (let i = 0; i < 3 && pool.length; i++){
-      const idx = Math.floor(Math.random() * pool.length);
-      const tpl = pool.splice(idx, 1)[0];
-      choices.push({
-        type: 'boss',
-        rarity: 'boss',
-        id: tpl.id,
-        name: tpl.name,
-        desc: tpl.desc,
-        mods: tpl.mods.map(m => ({...m}))
-      });
-    }
-    // 보스도 50% 보너스 힐 가능
-    if (Math.random() < 0.50){
+    const item = genBossItem(stage);
+    const choices = item ? [item] : [];
+    // 보스도 50% 보너스 힐
+    if (choices.length && Math.random() < 0.50){
       const ps = computeStats(G.player);
       const pct = 0.30 + Math.random() * 0.30;
       const healAmt = Math.max(1, Math.floor(ps.hp * pct));
-      const target = choices[Math.floor(Math.random() * choices.length)];
-      target.bonusHeal = healAmt;
-      target.bonusHealPct = Math.floor(pct * 100);
+      choices[0].bonusHeal = healAmt;
+      choices[0].bonusHealPct = Math.floor(pct * 100);
     }
     return choices;
   }
@@ -2219,6 +2336,7 @@ function showRewardModal(){
     if (r.type === 'item'){
       const slotDef = SLOT_BY_ID[r.slot];
       const slotName = slotDef.name;
+      const isBoss = r.isBossItem;
       const optHtml = r.options.map(o => {
         const cls = o.kind === 'special' ? 'special' : (o.kind === 'primary' ? 'primary' : 'basic');
         const tip = o.desc ? ` title="${o.desc}"` : '';
