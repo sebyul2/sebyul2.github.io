@@ -319,6 +319,27 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   cursor:pointer;
 }
 .skip-reward-btn:hover{color:var(--fg); border-color:var(--accent)}
+
+.peek-btn{
+  background:rgba(0,0,0,.4); color:var(--dim);
+  border:1px solid var(--border); padding:4px 10px;
+  font-family:inherit; font-size:11px; cursor:pointer;
+  letter-spacing:1px;
+}
+.peek-btn:hover{color:var(--fg); border-color:var(--accent); background:rgba(0,0,0,.7)}
+.modal-bg.peek{display:none !important}
+#peek-restore{
+  position:fixed; bottom:20px; right:20px; z-index:200;
+  background:linear-gradient(180deg, var(--accent), #c87a30);
+  color:var(--bg); border:2px solid #fff;
+  padding:12px 20px; font-family:inherit;
+  font-weight:bold; font-size:13px; letter-spacing:2px;
+  cursor:pointer;
+  box-shadow:0 0 20px rgba(255,174,92,.7), 0 4px 0 rgba(0,0,0,.5);
+  animation:pulse 1.4s ease infinite;
+}
+#peek-restore:hover{transform:translateY(-2px)}
+@keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(255,174,92,.7), 0 4px 0 rgba(0,0,0,.5)}50%{box-shadow:0 0 30px rgba(255,174,92,1), 0 4px 0 rgba(0,0,0,.5)}}
 .choice .body{padding:10px 10px 12px; display:flex; flex-direction:column; flex:1}
 .choice .rarity{
   font-size:10px; letter-spacing:2px; text-align:center;
@@ -507,6 +528,8 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
 <div class="modal-bg" id="modal-bg">
   <div class="modal" id="modal"></div>
 </div>
+
+<button id="peek-restore" onclick="restorePeek()" style="display:none">▲ 보상 다시 보기</button>
 
 <script>
 'use strict';
@@ -1272,6 +1295,48 @@ function genPerk(rarity, stage){
     mods,
     desc
   };
+}
+
+function modExplain(id){
+  return {
+    low_hp_atk: 'HP가 최대치의 50% 이하일 때 발동',
+    low_hp_crit: 'HP 임계치 이하 시 항상 치명타',
+    low_hp_dr: 'HP 30% 이하 시 받는 데미지 감소',
+    crit_chain: '치명타 발동 시 다음 1회 자동 치명타',
+    on_kill_atk_perm: '적 처치 시 atk 영구 누적',
+    on_kill_max_hp: '적 처치 시 최대 HP 영구 증가',
+    on_kill_next_hp_pct: '적 처치 시 다음 적 시작 HP 차감',
+    bossbane: '보스 적에게만 적용되는 추가 데미지',
+    flat_dr: '받는 데미지를 고정값만큼 감소',
+    evade_counter: '회피 성공 시 적에게 반격 데미지',
+    cycle3_dmg_pct: '매 3턴마다 강화 공격 1회',
+    cycle4_freeze: '매 4턴마다 적 행동 1회 무효',
+    cycle5_freeze: '매 5턴마다 적 행동 1회 무효',
+    cycle7_invuln: '매 7턴마다 적 공격 1회 완전 무효',
+    rage_per_turn: '전투 중 매 턴 atk 누적 (다음 전투 초기화)',
+    first_hit_block: '전투 시작 후 첫 피격 1회 무효',
+    desperate_mult: 'HP 5% 이하 시 데미지 ×N 증폭',
+    revive_count: '치명적 데미지 1회 회피 후 부활',
+    revive_pct: '부활 시 회복할 HP 비율',
+    revive_dmg_pct: '부활 시 적 HP 차감',
+    always_crit: '모든 공격 100% 치명타',
+    true_dmg_pct: '매 턴 적 최대 HP 비례 진실 데미지',
+    true_dmg_per_hit_pct: '매 공격마다 추가 진실 데미지',
+    dmg_reduction: '받는 데미지 % 감소',
+    pierce: '적 방어력 일부 무시',
+    lifesteal: '공격 데미지의 N% HP 회복',
+    crit_lifesteal: '치명타 시 최대 HP 비례 회복',
+    thorns: '받은 데미지의 일부 반사',
+    doublestrike: 'N% 확률로 추가 공격',
+    execute: '적 HP가 N% 이하면 즉사',
+    bleed: '공격 시 N% 확률 출혈 부여 (3턴)',
+    regen_flat: '매 턴 HP 회복 (고정값)',
+    regen_pct: '매 턴 최대 HP의 N% 회복',
+    firstblood: '전투 첫 턴 데미지 증폭',
+    stagger: 'N% 확률로 적 경직 (1턴 행동 무효)',
+    cleave: '매 공격 시 적 방어력 영구 감소',
+    evade_flat: '회피율 추가 (50% 이상부터 효율 둔화)',
+  }[id] || '';
 }
 
 function describeMod(m){
@@ -2218,6 +2283,9 @@ function showRewardModal(){
     }
   }).join('');
   showModal(`
+    <div style="position:absolute; top:8px; right:10px">
+      <button class="peek-btn" onclick="peekUnderModal()" title="잠시 모달 내리고 상태 보기">≡ 잠시 보기</button>
+    </div>
     <h2>보 상   획 득</h2>
     <div class="sub">3개 중 하나만 선택. 장비는 슬롯 교체, 특수효과는 누적</div>
     <div class="choices">${cards}</div>
@@ -2225,7 +2293,17 @@ function showRewardModal(){
       <button class="skip-reward-btn" onclick="skipReward()">× 모두 거절 (보상 안 받기)</button>
     </div>
   `);
+  $('modal').style.position = 'relative';
 }
+
+window.peekUnderModal = function(){
+  $('modal-bg').classList.add('peek');
+  $('peek-restore').style.display = 'block';
+};
+window.restorePeek = function(){
+  $('modal-bg').classList.remove('peek');
+  $('peek-restore').style.display = 'none';
+};
 
 window.skipReward = function(){
   if (!G.pendingReward) return;
@@ -2314,7 +2392,11 @@ function showInventoryModal(){
   // 합산 mods 표시
   const mods = aggregateMods(G.player);
   const ps = computeStats(G.player);
-  const totalRows = Object.entries(mods).map(([k,v]) => `<li class="row-opts">• ${describeMod({id:k, value:v})}</li>`).join('');
+  const totalRows = Object.entries(mods).map(([k,v]) => {
+    const exp = modExplain(k);
+    const expHtml = exp ? `<span style="color:var(--dim); font-size:10px"> — ${exp}</span>` : '';
+    return `<li class="row-opts">• ${describeMod({id:k, value:v})}${expHtml}</li>`;
+  }).join('');
   const totalsHtml = `
     <div class="inv-row">
       <div class="row-head"><span class="row-name">최종 스탯</span></div>
