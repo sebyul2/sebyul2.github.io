@@ -562,13 +562,13 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   .vs{font-size:16px}
 
   .mobile-inv-bar{
-    display:flex; gap:4px; align-items:stretch;
+    display:flex; flex-direction:column; gap:3px;
     border:2px solid var(--border); background:var(--panel);
     padding:3px 4px; margin-bottom:4px;
     cursor:pointer;
   }
   .mobile-inv-bar:active{background:#1a1a1a}
-  .mobile-inv-bar .slots{display:flex; gap:3px; flex:1}
+  .mobile-inv-bar .slots{display:flex; gap:3px}
   .mobile-inv-bar .slot-cell{
     flex:1; aspect-ratio:1;
     border:1.5px solid var(--border); background:#0a0a0a;
@@ -583,11 +583,20 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
     font-size:8px; line-height:10px; padding:0 2px;
     background:rgba(0,0,0,.85); font-weight:bold;
   }
-  .mobile-inv-bar .perks-count{
-    display:flex; align-items:center; justify-content:center;
-    color:#c8a8ff; font-size:11px; padding:0 6px;
-    border-left:1px dashed var(--border); font-weight:bold;
-    white-space:nowrap;
+  .mobile-inv-bar .mods{
+    display:flex; flex-wrap:wrap; gap:3px;
+    font-size:10px; line-height:1.2;
+    border-top:1px dashed var(--border); padding-top:3px;
+  }
+  .mobile-inv-bar .mods:empty{display:none}
+  .mobile-inv-bar .chip{
+    background:#0a0a0a; border:1px solid var(--border);
+    padding:1px 4px; color:#c8a8ff; white-space:nowrap;
+    font-weight:bold;
+  }
+  .mobile-inv-bar .chip.empty{
+    background:none; border:none; color:var(--dim);
+    font-style:italic; font-weight:normal; padding:1px 0;
   }
 
   .actions{margin-bottom:4px}
@@ -2355,6 +2364,50 @@ function render(){
   renderMobileInv();
 }
 
+// 모바일 인벤바 chip용: mod id → 작은 아이콘
+function modIcon(id){
+  const m = {
+    atk_pct:'⚔', atk_flat:'⚔',
+    hp_pct:'❤', hp_flat:'❤',
+    def_pct:'🛡', def_flat:'🛡',
+    evade_flat:'💨', evade:'💨',
+    crit_flat:'🎯', critdmg_flat:'💥',
+    lifesteal:'🩸', crit_lifesteal:'💉',
+    thorns:'🌵',
+    doublestrike:'⚡',
+    execute:'☠', bleed:'🔪',
+    regen_flat:'✚', regen_pct:'✚',
+    pierce:'🗡',
+    firstblood:'🥇',
+    stagger:'💫',
+    cleave:'🪓',
+    low_hp_atk:'🔥',
+    cycle3_dmg_pct:'🌩',
+    true_dmg_pct:'🌟',
+    dmg_reduction:'🪨',
+    revive_count:'☥', revive_pct:'☥',
+    always_crit:'💯',
+    cycle5_freeze:'❄', cycle7_invuln:'⛨',
+    first_hit_block:'⛨'
+  };
+  return m[id] || '✦';
+}
+// 짧은 수치: "+22%" / "+15" / "✓"
+function modShort(id, v){
+  if (id === 'always_crit') return '';
+  if (id === 'revive_count') return `×${v}`;
+  if (id === 'first_hit_block') return '';
+  if (id === 'cycle5_freeze' || id === 'cycle7_invuln') return '';
+  const PCT = new Set([
+    'atk_pct','hp_pct','def_pct','regen_pct',
+    'evade_flat','crit_flat','critdmg_flat',
+    'lifesteal','thorns','doublestrike','evade','execute','bleed',
+    'pierce','crit_lifesteal','firstblood','stagger',
+    'low_hp_atk','cycle3_dmg_pct','true_dmg_pct','dmg_reduction','revive_pct'
+  ]);
+  return PCT.has(id) ? `+${v}%` : `+${v}`;
+}
+
 function renderMobileInv(){
   const el = $('mobile-inv-bar');
   if (!el) return;
@@ -2368,8 +2421,26 @@ function renderMobileInv(){
     const lv = it.level || it.stage || 1;
     return `<div class="slot-cell filled" style="border-color:${c}" title="${s.name}: ${it.name} Lv.${lv}">${itemIconHtml(it)}<span class="lvbadge" style="color:${c}">${lv}</span></div>`;
   }).join('');
-  const perksCount = G.player.perks.length;
-  el.innerHTML = `<div class="slots">${slotsHtml}</div><div class="perks-count" title="특수효과">✨${perksCount}</div>`;
+
+  // 특수효과 합산 (장비 제외)
+  const perkSum = {};
+  for (const p of G.player.perks){
+    for (const m of p.mods){
+      perkSum[m.id] = (perkSum[m.id] || 0) + m.value;
+    }
+  }
+  const STAT_ORDER = ['atk_pct','atk_flat','hp_pct','hp_flat','def_pct','def_flat','evade_flat','crit_flat','critdmg_flat'];
+  const TRIG_ORDER = ['lifesteal','crit_lifesteal','doublestrike','pierce','execute','bleed','thorns','evade','stagger','regen_flat','regen_pct','firstblood','cleave','low_hp_atk','cycle3_dmg_pct','dmg_reduction','true_dmg_pct','always_crit','cycle5_freeze','cycle7_invuln','first_hit_block','revive_count','revive_pct'];
+  const order = [...STAT_ORDER, ...TRIG_ORDER];
+  const keys = Object.keys(perkSum).sort((a,b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+  const chipsHtml = keys.length === 0
+    ? `<span class="chip empty">특수효과 없음 — 탭하여 인벤 열기</span>`
+    : keys.map(k => `<span class="chip">${modIcon(k)}${modShort(k, perkSum[k])}</span>`).join('');
+
+  el.innerHTML = `<div class="slots">${slotsHtml}</div><div class="mods">${chipsHtml}</div>`;
 }
 
 function renderPlayer(){
