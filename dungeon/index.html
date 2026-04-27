@@ -229,6 +229,7 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
   margin-bottom:16px; letter-spacing:1px;
 }
 .choices{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+.choices.single{grid-template-columns:minmax(280px, 360px); justify-content:center}
 .choice{
   border:2px solid var(--border); padding:0;
   cursor:pointer; transition:all .15s;
@@ -2417,7 +2418,7 @@ function showRewardModal(){
     </div>
     <h2>보 상   획 득</h2>
     <div class="sub">3개 중 하나만 선택. 장비는 슬롯 교체, 특수효과는 누적</div>
-    <div class="choices">${cards}</div>
+    <div class="choices${rs.length===1?' single':''}">${cards}</div>
     <div class="modal-actions" style="text-align:center; margin-top:14px">
       <button class="skip-reward-btn" onclick="skipReward()">× 모두 거절 (보상 안 받기)</button>
     </div>
