@@ -641,6 +641,7 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
     <div class="stage-info">층 <span id="stage-num">1</span> / 100</div>
     <div class="title">심 연 의   1 0 0 층</div>
     <div>
+      <button id="btn-sound" title="사운드 토글">🔊</button>
       <button id="btn-inv">[I] 인벤</button>
       <button id="btn-restart">재시작</button>
     </div>
@@ -666,6 +667,69 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
 
 <script>
 'use strict';
+
+/* ===========================================================
+   SOUND FX (Web Audio API 8-bit synth, no external files)
+=========================================================== */
+const SoundFx = (() => {
+  let ctx = null;
+  let muted = (localStorage.getItem('roguelite_muted') === '1');
+  function getCtx(){
+    if (!ctx){
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return null; }
+    }
+    return ctx;
+  }
+  function tone({freq=440, type='square', duration=0.1, vol=0.08, attack=0.005, release=0.04, freqEnd=null, delay=0}){
+    if (muted) return;
+    const c = getCtx(); if (!c) return;
+    const t0 = c.currentTime + delay;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (freqEnd != null) o.frequency.linearRampToValueAtTime(freqEnd, t0 + duration);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.linearRampToValueAtTime(0, t0 + duration + release);
+    o.connect(g).connect(c.destination);
+    o.start(t0);
+    o.stop(t0 + duration + release + 0.02);
+  }
+  function noise({duration=0.1, vol=0.06, delay=0}){
+    if (muted) return;
+    const c = getCtx(); if (!c) return;
+    const t0 = c.currentTime + delay;
+    const buf = c.createBuffer(1, Math.max(1, Math.floor(c.sampleRate * duration)), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * 0.7;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.linearRampToValueAtTime(0, t0 + duration);
+    src.connect(g).connect(c.destination);
+    src.start(t0);
+  }
+  return {
+    hit:      () => tone({freq:260, freqEnd:120, type:'square',  duration:0.06, vol:0.07}),
+    crit:     () => { tone({freq:700, freqEnd:200, type:'square', duration:0.10, vol:0.10}); noise({duration:0.06, vol:0.05, delay:0.02}); },
+    damage:   () => tone({freq:170, freqEnd:80,  type:'sawtooth', duration:0.07, vol:0.06}),
+    miss:     () => tone({freq:330, freqEnd:680, type:'sine',     duration:0.10, vol:0.04}),
+    heal:     () => { tone({freq:523, type:'sine', duration:0.08, vol:0.07}); tone({freq:659, type:'sine', duration:0.10, vol:0.07, delay:0.06}); },
+    enemyDie: () => { tone({freq:280, freqEnd:60,  type:'sawtooth', duration:0.25, vol:0.09}); noise({duration:0.10, vol:0.04, delay:0.05}); },
+    boss:     () => { tone({freq:90, freqEnd:240,  type:'sawtooth', duration:0.35, vol:0.11}); tone({freq:60, freqEnd:140, type:'sawtooth', duration:0.40, vol:0.10, delay:0.18}); },
+    reward:   () => { tone({freq:523, type:'square', duration:0.07, vol:0.07}); tone({freq:659, type:'square', duration:0.07, vol:0.07, delay:0.07}); tone({freq:784, type:'square', duration:0.14, vol:0.07, delay:0.14}); },
+    death:    () => { tone({freq:330, freqEnd:50, type:'sawtooth', duration:0.55, vol:0.13}); noise({duration:0.4, vol:0.08, delay:0.20}); },
+    victory:  () => { [523,659,784,1047].forEach((f,i) => tone({freq:f, type:'square', duration:0.14, vol:0.09, delay:i*0.10})); },
+    select:   () => tone({freq:880, type:'square', duration:0.04, vol:0.05}),
+    effect:   () => tone({freq:440, freqEnd:880, type:'triangle', duration:0.08, vol:0.06}),
+    setMuted: (m) => { muted = !!m; localStorage.setItem('roguelite_muted', muted ? '1' : '0'); },
+    isMuted:  () => muted,
+    resume:   () => { const c = getCtx(); if (c && c.state === 'suspended') c.resume(); }
+  };
+})();
 
 /* ===========================================================
    UTILITIES
@@ -2209,6 +2273,7 @@ function healPlayer(amount, big=false){
   if (actual > 0){
     log(`회복 +${actual} HP`, 'heal');
     showHealEffect(actual, big);
+    if (big) SoundFx.heal();
   }
 }
 
@@ -2381,6 +2446,7 @@ function attack(){
     e.hp -= dmg;
     log(`${G.player.name||'당신'}의 공격! ${dmg} 데미지${isCrit?' (치명타!)':''}`, isCrit?'crit':'');
     showDamage('enemy', dmg, isCrit ? 'crit' : '');
+    isCrit ? SoundFx.crit() : SoundFx.hit();
   }
 
   // 보복의 저주 — 가한 데미지의 N% 자기에게 반사
@@ -2523,6 +2589,7 @@ function attack(){
     // 회피 (player evade 합산값 사용)
     if (ps.evade && Math.random() * 100 < ps.evade){
       log(`회피! (${ps.evade}%)`, 'miss');
+      SoundFx.miss();
       // 회피 반격
       if (mods.evade_counter){
         const counter = Math.max(1, Math.floor(ps.atk * mods.evade_counter / 100));
@@ -2597,6 +2664,7 @@ function attack(){
         G.player.hp = Math.max(0, G.player.hp - edmg);
         log(`적의 공격! ${edmg} 데미지${ed.isCrit?' (치명타!)':''}`, ed.isCrit?'crit':'');
         showDamage('player', edmg, ed.isCrit ? 'crit' : '');
+        SoundFx.damage();
       }
 
       if (e.hp <= 0) return endBattle(true);
@@ -2659,10 +2727,13 @@ function endBattle(playerWon){
       log(`자폭의 유언! HP -${dmg}`, 'crit');
       showDamage('player', dmg, '');
     }
+    // 적 처치 사운드 — 보스/일반 분리
+    if (G.battle.enemy.isBoss) SoundFx.boss(); else SoundFx.enemyDie();
     if (G.stage >= 100){
       G.won = true;
       saveGame();
       render();
+      SoundFx.victory();
       showVictoryModal();
       return;
     }
@@ -2685,12 +2756,14 @@ function endBattle(playerWon){
     G.pendingReward = generateRewards(G.stage);
     saveGame();
     render();
+    SoundFx.reward();
     showRewardModal();
   } else {
     G.lost = true;
     log(`>> 사망. 스테이지 ${G.stage}에서 쓰러졌다.`, 'crit');
     saveGame();
     render();
+    SoundFx.death();
     showGameOverModal();
   }
 }
@@ -2778,6 +2851,7 @@ function generateRewards(stage){
 function chooseReward(idx){
   const r = G.pendingReward[idx];
   if (!r) return;
+  SoundFx.select();
   const oldMax = maxHp(G.player);
   if (r.type === 'item'){
     const old = G.player.equipment[r.slot];
@@ -3441,9 +3515,21 @@ function bindKeys(){
       hideModal();
     }
   });
-  $('btn-attack').addEventListener('click', beginCombat);
+  $('btn-attack').addEventListener('click', () => { SoundFx.resume(); beginCombat(); });
   $('btn-inv').addEventListener('click', showInventoryModal);
   $('btn-restart').addEventListener('click', confirmRestart);
+  // 사운드 토글
+  const sndBtn = $('btn-sound');
+  if (sndBtn){
+    const refresh = () => { sndBtn.textContent = SoundFx.isMuted() ? '🔇' : '🔊'; };
+    refresh();
+    sndBtn.addEventListener('click', () => {
+      SoundFx.resume();
+      SoundFx.setMuted(!SoundFx.isMuted());
+      refresh();
+      if (!SoundFx.isMuted()) SoundFx.select();
+    });
+  }
 }
 
 /* ===========================================================
