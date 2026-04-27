@@ -798,8 +798,13 @@ const Bgm = (() => {
       try {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
         master = ctx.createGain();
-        master.gain.value = muted ? 0 : 0.7;
-        master.connect(ctx.destination);
+        master.gain.value = muted ? 0 : 0.55;
+        // 거친 고주파 차단 — 따뜻한 톤
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 1800;
+        lp.Q.value = 0.7;
+        master.connect(lp).connect(ctx.destination);
       } catch(e) { return null; }
     }
     return ctx;
@@ -810,12 +815,17 @@ const Bgm = (() => {
     const g = ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(freq, t);
+    // 더 부드러운 ADSR — 천천히 attack, 천천히 release (잔향감)
+    const atk = Math.min(0.04, dur * 0.15);
+    const rel = Math.min(0.18, dur * 0.40);
+    const sustainEnd = t + dur - rel;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.95);
+    g.gain.linearRampToValueAtTime(vol, t + atk);
+    g.gain.linearRampToValueAtTime(vol * 0.7, sustainEnd);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
     o.connect(g).connect(master);
     o.start(t);
-    o.stop(t + dur + 0.02);
+    o.stop(t + dur + 0.10);
   }
   function totalDuration(track){
     let s = 0; for (const [,d] of track) s += d * QUARTER; return s;
@@ -834,8 +844,8 @@ const Bgm = (() => {
     if (!playing) return;
     const c = getCtx(); if (!c) return;
     const start = Math.max(c.currentTime + 0.05, nextLoopAt);
-    playTrack(MELODY, start, 'square',   0.16);
-    playTrack(BASS,   start, 'triangle', 0.30);
+    playTrack(MELODY, start, 'triangle', 0.20);
+    playTrack(BASS,   start, 'sine',     0.35);
     const len = totalDuration(MELODY);
     nextLoopAt = start + len;
     loopHandle = setTimeout(scheduleLoop, (len - 0.25) * 1000);
@@ -848,7 +858,7 @@ const Bgm = (() => {
       // master gain 즉시 정상 음량으로
       if (master){
         master.gain.cancelScheduledValues(c.currentTime);
-        master.gain.setValueAtTime(muted ? 0 : 0.7, c.currentTime);
+        master.gain.setValueAtTime(muted ? 0 : 0.55, c.currentTime);
       }
       playing = true;
       nextLoopAt = 0;
