@@ -1551,6 +1551,8 @@ function genEnemy(stage){
 }
 
 const PLAYER_SPRITE_IDX = 0;
+// spritesheet 안에서 본래 화면 왼쪽을 보고 있는 sprite. enemy로 표시될 때 미러를 적용하면 오히려 적이 적을 등지게 되므로 noflip.
+const LEFT_FACING_SPRITES = new Set([17, 55]);
 function spriteBgPos(idx){
   // % 단위 — sprite element 크기와 무관하게 항상 정확한 셀 표시
   const c = idx % 10, r = Math.floor(idx / 10);
@@ -2794,7 +2796,7 @@ function renderEnemy(){
     <h3>적</h3>
     <div class="status-icons">${badges.join('')}</div>
     <div class="name">${e.name}</div>
-    <div class="sprite-stage"><div class="sprite" style="background-position:${spriteBgPos(sIdx)}" title="${e.name}"></div></div>
+    <div class="sprite-stage"><div class="sprite ${LEFT_FACING_SPRITES.has(sIdx) ? 'noflip' : ''}" style="background-position:${spriteBgPos(sIdx)}" title="${e.name}"></div></div>
     <div class="hpbar"><div style="width:${pct}%"></div><span>체력 ${Math.max(0,e.hp)} / ${e.maxHp}</span></div>
     <div class="stats">
       <span class="lbl">공격력</span><span class="val">${e.atk}</span>
