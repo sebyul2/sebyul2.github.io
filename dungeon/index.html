@@ -1336,7 +1336,13 @@ function genEnemy(stage){
   const bossMult = isBoss ? 1.85 : 1.0;
   const finalMult = isFinal ? 1.6 : 1.0;
 
-  const hp = Math.floor(baseHp * bossMult * finalMult);
+  // 챌린지 모디파이어 — 일반 적 강화 / 보스 강화
+  const chal = (typeof G !== 'undefined' && G._challenges) || {};
+  let chalAtkMult = 1.0, chalHpMult = 1.0;
+  if (chal.enemy_pressure && !isBoss){ chalAtkMult *= 1.25; chalHpMult *= 1.25; }
+  if (chal.boss_fury && isBoss){ chalAtkMult *= 1.50; chalHpMult *= 1.50; }
+
+  const hp = Math.floor(baseHp * bossMult * finalMult * chalHpMult);
   return {
     name: isFinal ? `${baseName} ※최종` : (isBoss ? `${baseName} ※보스` : baseName),
     spriteIdx,
@@ -1344,7 +1350,7 @@ function genEnemy(stage){
     isFinal,
     maxHp: hp,
     hp: hp,
-    atk: Math.floor(baseAtk * (isBoss ? 1.25 : 1) * (isFinal ? 1.4 : 1)),
+    atk: Math.floor(baseAtk * (isBoss ? 1.25 : 1) * (isFinal ? 1.4 : 1) * chalAtkMult),
     def: Math.floor(baseDef * (isBoss ? 1.2 : 1) * (isFinal ? 1.3 : 1)),
     evade: baseEvade,
     crit: baseCrit,
@@ -2075,6 +2081,8 @@ function generateRewards(stage){
   // loot_choices는 최대 +2 (4번 누적해도 5개를 넘지 않음)
   let numChoices = 3 + Math.min(2, mods.loot_choices || 0);
   if (mods.loot_extra && Math.random() * 100 < mods.loot_extra) numChoices += 1;
+  // 챌린지: 빈약한 보상 — 선택지 -1
+  if (G._challenges && G._challenges.lean_loot) numChoices = Math.max(1, numChoices - 1);
 
   const choices = [];
   // 초반 3보상까진 아이템 1개 이상 보장 (마지막 슬롯을 아이템으로 강제)
@@ -2221,6 +2229,10 @@ function healPlayer(amount, big=false){
   const mods = aggregateMods(G.player);
   if (mods.curse_heal){
     amount = Math.max(1, Math.floor(amount * (1 - mods.curse_heal / 100)));
+  }
+  // 챌린지: 저주받은 영혼 — 회복 -50%
+  if (G._challenges && G._challenges.cursed_souls){
+    amount = Math.max(1, Math.floor(amount * 0.5));
   }
   const max = maxHp(G.player);
   const before = G.player.hp;
@@ -2649,6 +2661,10 @@ function attack(){
       // 저주: 유리 같은 몸 — 받는 모든 데미지 +%
       if (mods.curse_glass_cannon){
         edmg = Math.floor(edmg * (1 + mods.curse_glass_cannon / 100));
+      }
+      // 챌린지: 깨진 갑옷 — 받는 모든 데미지 +15%
+      if (G._challenges && G._challenges.brittle_armor){
+        edmg = Math.floor(edmg * 1.15);
       }
       // HP 30% 이하 시 데미지 감소 (low_hp_dr)
       if (edmg > 0 && mods.low_hp_dr && G.player.hp <= ps.hp * 0.3){
@@ -3921,6 +3937,49 @@ function calcSoulReward(stage, rewardsTaken, bossesBeaten, isWin){
   return Math.max(1, Math.floor(soul));
 }
 
+// === 챌린지 모디파이어 (M2) ===
+// reach_50 업적 달성 시 성소에 표시. 시작 시 토글 ON/OFF. 활성 토글 합 = 영혼 배율 보너스.
+// 효과는 게임 코드 곳곳에서 G._challenges 체크하여 적용 (run 시작 시 META.challengesActive 복사).
+
+const CHALLENGES = [
+  {
+    id: 'cursed_souls', name: '저주받은 영혼', icon: '🩹',
+    desc: '받는 모든 회복 -50%',
+    bonus: 0.30
+  },
+  {
+    id: 'enemy_pressure', name: '심연의 압박', icon: '👁',
+    desc: '일반 적 공격력/체력 +25%',
+    bonus: 0.25
+  },
+  {
+    id: 'boss_fury', name: '보스의 분노', icon: '👹',
+    desc: '보스 공격력/체력 +50%',
+    bonus: 0.30
+  },
+  {
+    id: 'brittle_armor', name: '깨진 갑옷', icon: '🪨',
+    desc: '받는 모든 데미지 +15%',
+    bonus: 0.25
+  },
+  {
+    id: 'lean_loot', name: '빈약한 보상', icon: '📉',
+    desc: '보상 선택지 -1 (3택→2택)',
+    bonus: 0.20
+  }
+];
+
+const CHALLENGE_BY_ID = Object.fromEntries(CHALLENGES.map(c => [c.id, c]));
+
+// 챌린지 영혼 배율 — 활성 토글의 bonus 합 (1.0 + sum)
+function challengeSoulMultiplier(activeMap){
+  let sum = 1.0;
+  for (const c of CHALLENGES){
+    if (activeMap && activeMap[c.id]) sum += c.bonus;
+  }
+  return sum;
+}
+
 
 /* ===== 17-state-meta.js ===== */
 
@@ -3934,6 +3993,7 @@ function newMeta(){
     soul: 0,
     relics: {},        // { 'starter_shield': true, ... } — 보유 유물
     achievements: {},  // { 'first_kill': true, ... } — 달성 업적
+    challengesActive: {}, // { 'cursed_souls': true, ... } — 활성 챌린지 토글
     stat: {
       totalSoulEarned: 0,
       runs: 0,
@@ -3966,6 +4026,7 @@ function loadMeta(){
     fresh.soul = m.soul || 0;
     if (m.relics) Object.assign(fresh.relics, m.relics);
     if (m.achievements) Object.assign(fresh.achievements, m.achievements);
+    if (m.challengesActive) Object.assign(fresh.challengesActive, m.challengesActive);
     if (m.stat){
       // 새 필드는 newMeta() 기본값 유지, 기존 필드만 덮어쓰기
       for (const k of Object.keys(fresh.stat)){
@@ -4014,9 +4075,25 @@ function tryBuyRelic(relicId){
   return { ok: true };
 }
 
+// 챌린지 토글
+function toggleChallenge(id){
+  if (!CHALLENGE_BY_ID[id]) return false;
+  if (META.challengesActive[id]) delete META.challengesActive[id];
+  else META.challengesActive[id] = true;
+  saveMeta();
+  return !!META.challengesActive[id];
+}
+
+function isChallengeUnlocked(){
+  return !!META.achievements['reach_50'];
+}
+
 // 단일 런 통계를 META에 합산 + 업적 체크
 function awardSoul(stage, rewardsTaken, bossesBeaten, isWin){
-  const gain = calcSoulReward(stage, rewardsTaken, bossesBeaten, isWin);
+  let gain = calcSoulReward(stage, rewardsTaken, bossesBeaten, isWin);
+  // 챌린지 배율 적용 (G._challenges는 런 시작 시 META.challengesActive 복사본)
+  const mult = challengeSoulMultiplier(G._challenges || {});
+  gain = Math.floor(gain * mult);
   META.soul += gain;
   META.stat.totalSoulEarned += gain;
   META.stat.runs += 1;
@@ -4097,6 +4174,9 @@ function showSanctuaryModal(activeTab){
   activeTab = activeTab || 'relics';
   const ownedCount = Object.keys(META.relics).length;
   const achCount = Object.keys(META.achievements).length;
+  const challengesUnlocked = isChallengeUnlocked();
+  const activeChalCount = Object.keys(META.challengesActive || {}).length;
+  const chalMult = challengeSoulMultiplier(META.challengesActive);
 
   const cards = RELICS.map(r => {
     const owned = !!META.relics[r.id];
@@ -4158,12 +4238,41 @@ function showSanctuaryModal(activeTab){
     <div class="inv-tabs">
       <button class="${activeTab==='relics'?'active':''}" onclick="showSanctuaryModal('relics')">유물 (${ownedCount}/${RELICS.length})</button>
       <button class="${activeTab==='achievements'?'active':''}" onclick="showSanctuaryModal('achievements')">업적 (${achCount}/${ACHIEVEMENTS.length})</button>
+      <button class="${activeTab==='challenges'?'active':''} ${challengesUnlocked?'':'locked'}" onclick="showSanctuaryModal('challenges')" ${challengesUnlocked?'':'title="50층 도달 시 해금"'}>${challengesUnlocked?'':'🔒 '}챌린지 (${activeChalCount}/${CHALLENGES.length})</button>
       <button onclick="hideModal()" style="margin-left:auto">닫기</button>
     </div>
     <div class="inv-section ${activeTab==='relics'?'active':''}"><div class="unlock-grid">${cards}</div></div>
     <div class="inv-section ${activeTab==='achievements'?'active':''}"><div class="ach-list">${achList}</div></div>
+    <div class="inv-section ${activeTab==='challenges'?'active':''}">${_challengesHtml(challengesUnlocked, chalMult)}</div>
   `);
 }
+
+function _challengesHtml(unlocked, mult){
+  if (!unlocked){
+    return `<div class="ach-list"><div class="ach-row" style="padding:20px; text-align:center"><div class="ach-body"><div class="ach-name">🔒 챌린지 잠금</div><div class="ach-desc">50층 도달 시 해금됩니다. 더 어려운 도전과 더 많은 영혼.</div></div></div></div>`;
+  }
+  const cards = CHALLENGES.map(c => {
+    const on = !!(META.challengesActive && META.challengesActive[c.id]);
+    return `
+      <div class="unlock-card ${on?'owned':''}">
+        <div class="unlock-head">
+          <span class="unlock-icon">${c.icon}</span>
+          <span class="unlock-name">${c.name}</span>
+        </div>
+        <div class="unlock-desc">${c.desc}</div>
+        <div class="unlock-rarity" style="color:#ffd23f">영혼 +${Math.round(c.bonus*100)}%</div>
+        <button class="unlock-buy ${on?'ok':''}" onclick="toggleChal('${c.id}')">${on?'✓ 활성':'활성화'}</button>
+      </div>`;
+  }).join('');
+  const multHtml = `<div class="soul-balance" style="margin-bottom:8px"><span class="soul-num" style="font-size:24px">×${mult.toFixed(2)}</span><span class="soul-label">현재 영혼 배율</span></div>`;
+  return `${multHtml}<div class="unlock-grid">${cards}</div><div style="margin-top:10px; font-size:11px; color:var(--dim); text-align:center">⚠ 활성 챌린지는 다음 도전부터 적용됩니다.</div>`;
+}
+
+window.toggleChal = function(id){
+  toggleChallenge(id);
+  SoundFx.select();
+  showSanctuaryModal('challenges');
+};
 
 window.buyRelic = function(id){
   const r = tryBuyRelic(id);
@@ -4189,10 +4298,18 @@ function restart(){
   clearSave();
   G = newGame();
   G._run = { kills: 0, bossesBeaten: 0, lifestealBossKill: 0, thornsTotal: 0 };
+  // 챌린지 활성 토글 스냅샷 — 런 시작 시 복사하여 변경 무시
+  G._challenges = (typeof META !== 'undefined' && META.challengesActive)
+    ? Object.assign({}, META.challengesActive) : {};
   // 메타 유물 적용 — 보유 유물을 player.perks에 push
   if (typeof applyMetaRelics === 'function') applyMetaRelics(G.player);
   hideModal();
   $('log').innerHTML = '';
+  // 챌린지 활성 시 안내
+  const chalCount = Object.keys(G._challenges).length;
+  if (chalCount > 0){
+    log(`⚠ 챌린지 ${chalCount}개 활성 — 영혼 ×${challengeSoulMultiplier(G._challenges).toFixed(2)}`, 'system');
+  }
   log('새로운 도전이 시작된다.', 'system');
   startBattle();
 }
