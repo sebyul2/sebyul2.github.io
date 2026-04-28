@@ -880,6 +880,25 @@ const Bgm = (() => {
     }
     return t;
   }
+  // diatonic 3rd 아래 화음 (Am natural minor)
+  // A4 → F4, B4 → G4, C5 → A4, D5 → B4, E5 → C5, F5 → D5, G5 → E5, A5 → F5
+  const H3_MAP = {
+    'A': ['F', 0], 'B': ['G', 0], 'C': ['A', -1], 'D': ['B', -1],
+    'E': ['C', 0], 'F': ['D', 0], 'G': ['E', 0]
+  };
+  function harmony3rdBelow(note){
+    if (note === '_') return '_';
+    const m = note.match(/^([A-G])(\d)$/);
+    if (!m) return note;
+    const ent = H3_MAP[m[1]];
+    if (!ent) return note;
+    const cand = ent[0] + (parseInt(m[2]) + ent[1]);
+    return NOTE[cand] != null ? cand : note;
+  }
+  function harmonyTrack(track){
+    return track.map(([n, d]) => [harmony3rdBelow(n), d]);
+  }
+
   function octaveDownTrack(track){
     return track.map(([n, d]) => {
       if (n === '_') return ['_', d];
@@ -1029,24 +1048,22 @@ const Bgm = (() => {
     } else {
       QUARTER = 0.42;
       loopCount++;
-      // Loop마다 instrument 조합 변형 (3-cycle) — 음악적 핵심은 유지, 톤만 다름
+      // Loop마다 texture 변형 (3-cycle): 화음 유무 + instrument 조합으로 명확한 차별
       const v = (loopCount - 1) % 3;
-      let melodyType, melodyVol, bassType, bassVol;
       if (v === 0){
-        // v0: 따뜻한 triangle 멜로디 + 둥근 sine 베이스 (기본)
-        melodyType = 'triangle'; melodyVol = 0.18;
-        bassType   = 'sine';     bassVol   = 0.09;
+        // v0: 솔로 멜로디 (잔잔, 화음 없음) — solo lead
+        playTrack(MAIN_MELODY, start, 'triangle', 0.18);
+        playTrack(MAIN_BASS,   start, 'sine',     0.09, 'pluck');
       } else if (v === 1){
-        // v1: 부드러운 sine 멜로디 + triangle 베이스 (둘이 역할 교환)
-        melodyType = 'sine';     melodyVol = 0.20;
-        bassType   = 'triangle'; bassVol   = 0.08;
+        // v1: 멜로디 + 3rd 아래 화음 (두꺼운 텍스처) — duet
+        playTrack(MAIN_MELODY,             start, 'triangle', 0.16);
+        playTrack(harmonyTrack(MAIN_MELODY), start, 'sine',    0.09);
+        playTrack(MAIN_BASS,               start, 'sine',     0.08, 'pluck');
       } else {
-        // v2: 멜로디 더 작게 + 베이스 약간 살아남 — 잔잔한 분위기
-        melodyType = 'triangle'; melodyVol = 0.14;
-        bassType   = 'sine';     bassVol   = 0.10;
+        // v2: 멜로디 sine (둥글게) + 베이스 triangle (또렷) — 역할 교환, 화음 없음
+        playTrack(MAIN_MELODY, start, 'sine',     0.20);
+        playTrack(MAIN_BASS,   start, 'triangle', 0.08, 'pluck');
       }
-      playTrack(MAIN_MELODY, start, melodyType, melodyVol);
-      playTrack(MAIN_BASS,   start, bassType,   bassVol, 'pluck');
       const lenQ = MAIN_MELODY.reduce((s, [, d]) => s + d, 0);
       const len = lenQ * QUARTER;
       // Loop 사이 정적 — 호흡감
