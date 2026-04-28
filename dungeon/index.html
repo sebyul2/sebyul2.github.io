@@ -670,11 +670,21 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
 'use strict';
 
 /* ===========================================================
+   SAFE STORAGE — sandboxed iframe / private mode 환경에서도 동작
+=========================================================== */
+const _memStore = {};
+const safeStorage = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return (k in _memStore) ? _memStore[k] : null; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch(e){ _memStore[k] = v; } },
+  remove(k){ try { localStorage.removeItem(k); } catch(e){ delete _memStore[k]; } }
+};
+
+/* ===========================================================
    SOUND FX (Web Audio API 8-bit synth, no external files)
 =========================================================== */
 const SoundFx = (() => {
   let ctx = null;
-  let muted = (localStorage.getItem('roguelite_muted') === '1');
+  let muted = (safeStorage.get('roguelite_muted') === '1');
   function getCtx(){
     if (!ctx){
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -726,7 +736,7 @@ const SoundFx = (() => {
     victory:  () => { [523,659,784,1047].forEach((f,i) => tone({freq:f, type:'square', duration:0.14, vol:0.09, delay:i*0.10})); },
     select:   () => tone({freq:880, type:'square', duration:0.04, vol:0.05}),
     effect:   () => tone({freq:440, freqEnd:880, type:'triangle', duration:0.08, vol:0.06}),
-    setMuted: (m) => { muted = !!m; localStorage.setItem('roguelite_muted', muted ? '1' : '0'); },
+    setMuted: (m) => { muted = !!m; safeStorage.set('roguelite_muted', muted ? '1' : '0'); },
     isMuted:  () => muted,
     resume:   () => { const c = getCtx(); if (c && c.state === 'suspended') c.resume(); }
   };
@@ -738,7 +748,7 @@ const SoundFx = (() => {
 const Bgm = (() => {
   let ctx = null;
   let master = null;
-  let muted = (localStorage.getItem('roguelite_bgm_muted') === '1');
+  let muted = (safeStorage.get('roguelite_bgm_muted') === '1');
   let playing = false;
   let nextLoopAt = 0;
   let loopHandle = null;
@@ -1106,7 +1116,7 @@ const Bgm = (() => {
     },
     setMuted(m){
       muted = !!m;
-      localStorage.setItem('roguelite_bgm_muted', muted ? '1' : '0');
+      safeStorage.set('roguelite_bgm_muted', muted ? '1' : '0');
       if (muted){
         this.stop();
       } else {
@@ -2539,16 +2549,16 @@ let _skipTimer = null;
 let G = newGame();
 
 function saveGame(){
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch(e){}
+  try { safeStorage.set(SAVE_KEY, JSON.stringify(G)); } catch(e){}
 }
 function loadGame(){
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = safeStorage.get(SAVE_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch(e){ return null; }
 }
-function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
+function clearSave(){ safeStorage.remove(SAVE_KEY); }
 
 /* ===========================================================
    COMBAT
