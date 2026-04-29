@@ -5389,9 +5389,9 @@ function applyShopPurchase(o){
 //   - 의도적 비대칭: deterministic random offset (graph seed 기반)
 
 const MAP_VB_W = 760;     // viewBox width
-const MAP_LAYER_H = 90;   // 각 layer 세로 간격
-const MAP_NODE_R = 32;    // 노드 반경 (육각형 외접원)
-const MAP_BOSS_R = 48;    // 보스 노드 반경
+const MAP_LAYER_H = 82;   // 각 layer 세로 간격 (라벨 제거로 좁힘)
+const MAP_NODE_R = 36;    // 노드 반경 (32→36, 라벨 제거 후 노드 자체를 크게)
+const MAP_BOSS_R = 54;    // 보스 노드 반경
 
 // graph deterministic random — node 위치 약간 흔들기 (seed = nodeId hash)
 function _hashSeed(s){
@@ -5611,9 +5611,9 @@ function _renderConnections(){
       } else if (fromVisited && toAccessible){
         stroke = '#ffae5c'; w = 2.2; dash = '6 4'; opacity = 0.95; filter = 'url(#glow)';
       } else if (toAccessible){
-        stroke = '#ffd23f'; w = 1.8; dash = '4 5'; opacity = 0.7;
+        stroke = '#ffd23f'; w = 1.8; dash = '4 5'; opacity = 0.78;
       } else {
-        stroke = '#5a4a30'; w = 1.2; dash = '2 6'; opacity = 0.45;
+        stroke = '#8a6a3a'; w = 1.4; dash = '3 5'; opacity = 0.62;
       }
       out.push(`<path d="${path}" stroke="${stroke}" stroke-width="${w}" stroke-dasharray="${dash}" stroke-linecap="round" fill="none" opacity="${opacity}"${filter ? ' filter="' + filter + '"' : ''}/>`);
     }
@@ -5668,19 +5668,23 @@ function _renderNodeSvg(nodeId){
   }
 
   const click = isAccessible ? `onclick="pickMapNode('${nodeId}')" style="cursor:pointer"` : '';
-  // 라벨
-  const label = isBoss ? 'BOSS' : t.label;
-  const labelY = p.y + p.r + 13;
+  // 라벨 제거 — native <title> tooltip + 보스만 명시 텍스트
+  const tooltip = isBoss ? 'BOSS — 최종 보스' : t.label;
+  const bossLabel = isBoss
+    ? `<text x="${p.x}" y="${p.y + p.r + 16}" text-anchor="middle" font-size="13" font-weight="bold" letter-spacing="3" fill="${color}" font-family="Courier New,monospace" stroke="#000" stroke-width="2" stroke-linejoin="round" paint-order="stroke">BOSS</text>`
+    : '';
 
   return `
     <g class="map-node-g" data-node-id="${nodeId}" opacity="${opacity}" ${click}${filter ? ` filter="${filter}"` : ''}>
+      <title>${tooltip}</title>
       ${extra}
       <polygon points="${hex}" fill="${bgFill}" stroke="${strokeColor}" stroke-width="${strokeW}" stroke-linejoin="round"/>
+      <polygon points="${hex}" fill="${color}" opacity="${isAccessible || isCurrent ? 0.22 : (isVisited ? 0.12 : 0.10)}" pointer-events="none"/>
       <polygon points="${innerHex}" fill="none" stroke="${strokeColor}" stroke-width="0.6" stroke-opacity="0.4"/>
-      <g transform="translate(${p.x - p.r*0.5}, ${p.y - p.r*0.5})" style="color:${color}">
-        <use xlink:href="#icon-${node.type}" width="${p.r}" height="${p.r}"/>
+      <g transform="translate(${p.x - p.r*0.55}, ${p.y - p.r*0.55})" style="color:${color}">
+        <use xlink:href="#icon-${node.type}" width="${p.r * 1.1}" height="${p.r * 1.1}"/>
       </g>
-      <text x="${p.x}" y="${labelY}" text-anchor="middle" font-size="${isBoss ? 11 : 9}" font-weight="${isBoss?'bold':'normal'}" letter-spacing="2" fill="${isAccessible || isCurrent ? color : '#a08868'}" font-family="Courier New,monospace">${label}</text>
+      ${bossLabel}
     </g>
   `;
 }
