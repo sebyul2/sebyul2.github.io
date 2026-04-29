@@ -1473,8 +1473,65 @@ const BOSS_NEGATIVES = [
   // 더 특수한 - 효과
   { id:'curse_glass_cannon', label:(v)=>`받는 모든 데미지 +${v}% (유리 같은 몸)`,              range:[25, 55] },
   { id:'curse_blood_offering', label:(v)=>`매 공격 시 자기 최대HP -${v}% (피의 제물)`,         range:[2, 5] },
-  { id:'curse_revenge',      label:(v)=>`공격이 가한 데미지의 ${v}%가 자기에게 반사 (보복)`,    range:[15, 35] },
-  { id:'curse_doom_clock',   label:(v)=>`${v}턴 안에 적 처치 못하면 자기 최대HP -50% (운명의 시계)`, range:[20, 35] }
+  { id:'curse_revenge',      label:(v)=>`공격이 가한 데미지의 ${v}%가 자기에게 반사 (보복)`,    range:[15, 35] }
+  // curse_doom_clock 제거 — 33턴 거의 안 넘어가서 무의미
+];
+
+// === BOSS_POSITIVES (M2) — 보스 패시브 풀 30종 ===
+// 코쿤 디자인: DPS 차원이 아닌 진짜 다른 차원 (HP/행동/메타/누적/조건/도박/시너지/자원).
+// genBossItem에서 80% 확률로 1개 추가 부착. label은 옵션 표시용, desc는 hover 설명용.
+const BOSS_POSITIVES = [
+  // === A. HP / 생존 ===
+  { id:'heal_on_kill',     range:[3, 7],   label:(v)=>`처치 시 max HP의 ${v}% 회복`,                 desc:'적 처치할 때마다 회복 (수확의 의식)' },
+  { id:'low_hp_regen',     range:[5, 10],  label:(v)=>`HP 30% 이하 시 매 턴 max HP의 ${v}% 회복`,    desc:'위기 상황에서 자동 회복 (위기 광채)' },
+  { id:'overheal_cap',     range:[30, 50], label:(v)=>`회복 시 max HP의 +${v}%까지 초과 가능 (실드)`, desc:'overheal분이 실드 역할 (HP 부정)' },
+
+  // === B. 행동 / 턴 ===
+  { id:'cycle5_extra_turn',range:[1, 1],   label:()=>'매 5턴 자기 차례 1회 추가',                    desc:'한 턴에 두 번 공격 (시간 압축)' },
+  { id:'boss_silence_3',   range:[3, 3],   label:()=>'보스 첫 3턴 적 행동 무효',                     desc:'보스 한정 시작 우위 (시작의 정적)' },
+  { id:'cycle5_both_freeze',range:[1, 1],  label:()=>'매 5턴 자기/적 모두 행동 1턴 무효',           desc:'서로 멈춤 (시간 정체)' },
+
+  // === C. 메타 영혼 ===
+  { id:'soul_per_kill',    range:[1, 2],   label:(v)=>`처치 시 영혼 +${v} (즉시)`,                   desc:'런 중 메타 영혼 누적 (영혼 채집자)' },
+  { id:'soul_run_mult',    range:[15, 25], label:(v)=>`런 종료 영혼 ×${(1+v/100).toFixed(2)}`,       desc:'정산 시 보너스 (런 배율)' },
+  { id:'soul_clear_bonus', range:[300, 500],label:(v)=>`100층 클리어 시 영혼 +${v}`,                desc:'클리어 한정 대박 (클리어 보너스)' },
+
+  // === D. 조건부 / 누적 ===
+  { id:'on_kill_atk_perm_v2',range:[1, 2], label:(v)=>`처치 시 atk +${v} 영구 (런 한정)`,           desc:'처치할수록 강해짐 (연쇄 atk)' },
+  { id:'full_hp_dr',       range:[20, 35], label:(v)=>`HP max 시 받는 데미지 -${v}%`,               desc:'풀체력 보너스 (만전 보호)' },
+  { id:'boss_def_pct',     range:[25, 40], label:(v)=>`보스 전투 한정 def +${v}%`,                  desc:'보스만 강함 (보스 학살자)' },
+
+  // === E. 인벤 / 장비 ===
+  { id:'weapon_double',    range:[40, 60], label:(v)=>`weapon 옵션 효과 +${v}% (한 번 더 적용)`,    desc:'무기 효과 강화 (양손의 인장)' },
+  { id:'empty_slot_bonus', range:[2, 3],   label:(v)=>`빈 슬롯 1개당 모든 stat +${v}%`,             desc:'덜 장착할수록 강함 (결합의 인장)' },
+  { id:'boss_extra_option',range:[1, 1],   label:()=>'보스 처치 시 다음 보스템 옵션 +1 (영구)',     desc:'보스템 강화 (각인의 의식)' },
+
+  // === F. 트레이드 오프 / 도박 ===
+  { id:'madness_stack',    range:[2, 3],   label:(v)=>`매 턴 max HP -${v}, atk +5% (스택)`,         desc:'시간 흐를수록 강해지나 죽음에 가까워짐 (광기 누적)' },
+  { id:'full_hp_buff',     range:[25, 35], label:(v)=>`HP max 시 stat +${v}%, 미만 -10%`,           desc:'풀체력 도박 (용맹의 가호)' },
+  { id:'alive_buff',       range:[25, 35], label:(v)=>`살아있을 때 모든 % 효과 +${v}%, 사망 영혼 ×0.5`, desc:'살아남는 자에게 보상 (영혼의 대가)' },
+  { id:'chaos_atk_dice',   range:[1, 1],   label:()=>'매 턴 50% atk +50% / 50% atk -30%',          desc:'순수 도박 (카오스 주사위)' },
+  { id:'atk_def_swap_5',   range:[5, 5],   label:()=>'매 5턴 atk와 def 일시 swap 5턴 유지',         desc:'주기적 변신 (변신의 인장)' },
+
+  // === G. 확률 / 시너지 ===
+  { id:'proc_synergy',     range:[1, 1],   label:()=>'흡혈/추가타/회피 1개 발동 시 다른 모두 발동', desc:'확률 효과 시너지 (시너지 발동)' },
+  { id:'lifesteal_evolve', range:[1, 2],   label:(v)=>`흡혈 발동 시 max HP +${v} 영구`,            desc:'흡혈할수록 max HP 누적 (흡정 진화)' },
+
+  // === H. 상태이상 ===
+  { id:'status_immune',    range:[1, 1],   label:()=>'bleed/freeze 등 자기 상태이상 면역',          desc:'디버프 무효 (저주 면역)' },
+  { id:'curse_reflect',    range:[50, 80], label:(v)=>`자기 받는 저주 효과의 ${v}%를 적에게도 적용`, desc:'저주 반사 (저주 반전)' },
+
+  // === I. 변환 / 자원 ===
+  { id:'soul_per_turn',    range:[1, 1],   label:(v)=>`매 턴 영혼 +${v} (즉시 META 누적)`,          desc:'시간이 영혼 (자원 변환)' },
+  { id:'def_to_hp',        range:[1, 2],   label:(v)=>`def 1당 max HP +${v} 영구`,                  desc:'방어가 체력으로 (방어 변환)' },
+
+  // === J. 보상 / 메타 ===
+  { id:'extra_loot_chance',range:[5, 10],  label:(v)=>`일반 적 처치 시 ${v}% 확률 보상 등장`,        desc:'보너스 보상 트리거 (다중 보상)' },
+  { id:'boss_loot_choice', range:[1, 1],   label:()=>'보스 처치 시 보상 2개 후보, 1개 선택',         desc:'보스템 다양화' },
+  { id:'perk_count_buff',  range:[1, 2],   label:(v)=>`보유 perk 갯수 × ${v}% 모든 stat`,           desc:'perk 많을수록 강함 (퍼크 시너지)' },
+
+  // === K. 구조 변형 ===
+  { id:'double_boss_chance',range:[20, 30],label:(v)=>`보스 처치 시 ${v}% 확률 같은 보스 한 번 더 (보상 2회)`, desc:'보스 도전 도박 (이중 보스)' }
 ];
 
 function genBossItem(stage){
@@ -1526,6 +1583,21 @@ function genBossItem(stage){
     if (usedNeg.has(neg.id)) break;
     usedNeg.add(neg.id);
     addBossNegativeOption(item, neg, stage);
+  }
+  // M2: 80% 확률로 BOSS_POSITIVES 패시브 1개 추가 (보스템에 진짜 특수한 효과)
+  if (Math.random() < 0.80){
+    const pos = choice(BOSS_POSITIVES);
+    const v = rand(pos.range[0], pos.range[1]);
+    item.mods.push({ id: pos.id, value: v });
+    item.options.push({ kind:'special', label: `★ ${pos.label(v)}`, desc: pos.desc });
+  }
+  // M2: 각인의 의식 — G.player.metaBossExtraOption 누적당 추가 BOSS_POSITIVES 1개씩
+  const extraCount = (typeof G !== 'undefined' && G.player && G.player.metaBossExtraOption) || 0;
+  for (let i = 0; i < extraCount; i++){
+    const pos2 = choice(BOSS_POSITIVES);
+    const v2 = rand(pos2.range[0], pos2.range[1]);
+    item.mods.push({ id: pos2.id, value: v2 });
+    item.options.push({ kind:'special', label: `★ ${pos2.label(v2)}`, desc: pos2.desc });
   }
   return item;
 }
@@ -1660,6 +1732,37 @@ function describeMod(m){
     case 'curse_revenge': return `보복 반사 ${m.value}%`;
     case 'curse_doom_clock': return `${m.value}턴 시간 압박`;
     case 'curse_swap_atk_def': return `공격력↔방어력 교환`;
+    // === BOSS_POSITIVES (M2) ===
+    case 'heal_on_kill': return `처치 회복 ${m.value}%`;
+    case 'low_hp_regen': return `위기 회복 ${m.value}%/턴`;
+    case 'overheal_cap': return `overheal +${m.value}%`;
+    case 'cycle5_extra_turn': return `매 5턴 추가 차례`;
+    case 'boss_silence_3': return `보스 시작 ${m.value}턴 무효`;
+    case 'cycle5_both_freeze': return `매 5턴 둘 다 정지`;
+    case 'soul_per_kill': return `처치 영혼 +${m.value}`;
+    case 'soul_run_mult': return `런 영혼 +${m.value}%`;
+    case 'soul_clear_bonus': return `클리어 영혼 +${m.value}`;
+    case 'on_kill_atk_perm_v2': return `처치 atk +${m.value} 영구`;
+    case 'full_hp_dr': return `풀체력 피해감소 ${m.value}%`;
+    case 'boss_def_pct': return `보스전 def +${m.value}%`;
+    case 'weapon_double': return `weapon 효과 +${m.value}%`;
+    case 'empty_slot_bonus': return `빈 슬롯당 +${m.value}%`;
+    case 'boss_extra_option': return `보스템 옵션 +1 영구`;
+    case 'madness_stack': return `광기 -${m.value}/턴 +5%atk`;
+    case 'full_hp_buff': return `풀체력 +${m.value}% / 미만 -10%`;
+    case 'alive_buff': return `생존 +${m.value}% / 사망 ×0.5`;
+    case 'chaos_atk_dice': return `카오스 ±atk`;
+    case 'atk_def_swap_5': return `매 5턴 atk↔def swap`;
+    case 'proc_synergy': return `확률효과 시너지`;
+    case 'lifesteal_evolve': return `흡혈 시 max HP +${m.value}`;
+    case 'status_immune': return `상태이상 면역`;
+    case 'curse_reflect': return `저주 반사 ${m.value}%`;
+    case 'soul_per_turn': return `매 턴 영혼 +${m.value}`;
+    case 'def_to_hp': return `def 1당 HP +${m.value}`;
+    case 'extra_loot_chance': return `보너스 보상 ${m.value}%`;
+    case 'boss_loot_choice': return `보스템 2택`;
+    case 'perk_count_buff': return `perk 개당 +${m.value}%`;
+    case 'double_boss_chance': return `이중 보스 ${m.value}%`;
     default: return `${m.id} ${m.value}`;
   }
 }
@@ -1857,6 +1960,58 @@ function computeStats(player){
   // 사선의 본능 (low_hp_evade) — HP 30% 이하일 때 회피 추가
   if (mods.low_hp_evade && player.hp <= provisionalMaxHp * 0.3){
     flat.evade += mods.low_hp_evade;
+  }
+
+  // === M2 보스 패시브 ===
+  // 빈 슬롯 보너스
+  if (mods.empty_slot_bonus){
+    let emptySlots = 0;
+    for (const slot of Object.keys(player.equipment)){
+      if (!player.equipment[slot]) emptySlots++;
+    }
+    const bonus = emptySlots * mods.empty_slot_bonus;
+    pct.atk += bonus; pct.hp += bonus; pct.def += bonus;
+  }
+  // 살아있을 때 % 효과 +N% (사망 시 영혼은 17-state-meta에서 처리)
+  if (mods.alive_buff && player.hp > 0){
+    pct.atk += mods.alive_buff;
+    pct.hp += Math.floor(mods.alive_buff / 2);
+    pct.def += Math.floor(mods.alive_buff / 2);
+  }
+  // 만전(HP=max)/미만 buff
+  if (mods.full_hp_buff){
+    if (player.hp >= provisionalMaxHp){
+      pct.atk += mods.full_hp_buff;
+      pct.hp += mods.full_hp_buff;
+      pct.def += mods.full_hp_buff;
+    } else {
+      pct.atk -= 10;
+      pct.hp -= 10;
+      pct.def -= 10;
+    }
+  }
+  // 퍼크 시너지 — perks 갯수 × N% 모든 stat
+  if (mods.perk_count_buff){
+    const bonus = (player.perks.length || 0) * mods.perk_count_buff;
+    pct.atk += bonus; pct.hp += bonus; pct.def += bonus;
+  }
+  // weapon 효과 +N% — 단순화: atk_pct 보너스 (장착 weapon 있을 때만)
+  if (mods.weapon_double && player.equipment.weapon){
+    pct.atk += Math.floor(mods.weapon_double * 0.5);  // 효과의 절반을 atk%로
+  }
+  // def → max HP — def 1당 max HP +N
+  if (mods.def_to_hp){
+    const defNow = (base.def || 0) + flat.def;
+    flat.hp += defNow * mods.def_to_hp;
+  }
+  // atk/def swap (5턴 주기) — G.battle.swapActive flag로 attack에서 swap 발동 시 임시 swap
+  if (G && G.battle && G.battle.swapActive){
+    const tmp = flat.atk; flat.atk = flat.def; flat.def = tmp;
+    const tp = pct.atk; pct.atk = pct.def; pct.def = tp;
+  }
+  // 광기 누적 atk_pct (G.player._madnessAtkPct가 매 턴 +5씩 누적)
+  if (G && G.player && G.player._madnessAtkPct){
+    pct.atk += G.player._madnessAtkPct;
   }
 
   const out = {};
@@ -2057,8 +2212,13 @@ function generateRewards(stage){
 
   // 보스 처치 시: 그 층 전용 풀에서 1개만 — 장비 형태
   if (G.battle.enemy && G.battle.enemy.isBoss){
-    const item = genBossItem(stage);
-    const choices = item ? [item] : [];
+    // M2: boss_loot_choice — 보스템 2개 후보 중 1개 선택
+    const bossCount = mods.boss_loot_choice ? 2 : 1;
+    const choices = [];
+    for (let i = 0; i < bossCount; i++){
+      const it = genBossItem(stage);
+      if (it) choices.push(it);
+    }
     // 보스도 50% 보너스 힐
     if (choices.length && Math.random() < 0.50){
       const ps = computeStats(G.player);
@@ -2080,7 +2240,9 @@ function generateRewards(stage){
   }
   // loot_choices는 최대 +2 (4번 누적해도 5개를 넘지 않음)
   let numChoices = 3 + Math.min(2, mods.loot_choices || 0);
-  if (mods.loot_extra && Math.random() * 100 < mods.loot_extra) numChoices += 1;
+  // M2: extra_loot_chance도 loot_extra와 같은 효과 (확률만큼 +1)
+  const extraChance = (mods.loot_extra || 0) + (mods.extra_loot_chance || 0);
+  if (extraChance && Math.random() * 100 < extraChance) numChoices += 1;
   // 챌린지: 빈약한 보상 — 선택지 -1
   if (G._challenges && G._challenges.lean_loot) numChoices = Math.max(1, numChoices - 1);
 
@@ -2159,7 +2321,13 @@ function chooseReward(idx){
   } else if (G.player.hp > newMax){
     G.player.hp = newMax;
   }
-  G.stage += 1;
+  // M2: 이중 보스 — stage 그대로 두고 같은 보스 다시
+  if (G._doubleBossPending){
+    G._doubleBossPending = false;
+    log('같은 보스 재등장!', 'system');
+  } else {
+    G.stage += 1;
+  }
   hideModal();
   saveGame();
   startBattle();
@@ -2234,7 +2402,11 @@ function healPlayer(amount, big=false){
   if (G._challenges && G._challenges.cursed_souls){
     amount = Math.max(1, Math.floor(amount * 0.5));
   }
-  const max = maxHp(G.player);
+  // M2: HP 부정 — 회복이 max HP 초과 가능 (+N% 까지)
+  let max = maxHp(G.player);
+  if (mods.overheal_cap){
+    max = Math.floor(max * (1 + mods.overheal_cap / 100));
+  }
   const before = G.player.hp;
   G.player.hp = Math.min(max, G.player.hp + amount);
   const actual = G.player.hp - before;
@@ -2333,7 +2505,51 @@ function attack(){
     trackAlwaysCritProc();
   }
 
+  // === M2 패시브 — 매 턴 ===
+  // 자원 변환: 매 턴 영혼 +N
+  if (mods.soul_per_turn && typeof META !== 'undefined'){
+    META.soul += mods.soul_per_turn;
+    if (typeof saveMeta === 'function') saveMeta();
+  }
+  // 광기 누적: 매 턴 max HP -N, atk +5% 영구 누적
+  if (mods.madness_stack){
+    G.player.bonusMaxHp = (G.player.bonusMaxHp || 0) - mods.madness_stack;
+    G.player._madnessAtkPct = (G.player._madnessAtkPct || 0) + 5;
+  }
+  // M2: 위기 광채 — HP 30% 이하 시 매 턴 max HP N% 회복
+  if (mods.low_hp_regen){
+    const maxHpVal = maxHp(G.player);
+    if (G.player.hp <= maxHpVal * 0.3){
+      const heal = Math.max(1, Math.floor(maxHpVal * mods.low_hp_regen / 100));
+      healPlayer(heal);
+    }
+  }
+  // 카오스 주사위: 매 턴 50% atk +50% / 50% atk -30% (1턴 임시 buff)
+  if (mods.chaos_atk_dice){
+    G.battle._chaosThisTurn = Math.random() < 0.5 ? 0.5 : -0.3;
+    log(G.battle._chaosThisTurn > 0 ? `🎲 카오스: atk +50%` : `🎲 카오스: atk -30%`, 'effect');
+  }
+  // atk/def swap (매 5턴 시작 시 5턴 동안 swap)
+  if (mods.atk_def_swap_5){
+    if (G.battle.turn % 5 === 1){
+      G.battle.swapActive = !G.battle.swapActive;
+      log(G.battle.swapActive ? '🔄 변신 시작 (atk↔def)' : '🔄 변신 종료', 'effect');
+    }
+  }
+
   log(`> 턴 ${G.battle.turn}`, 'turn');
+
+  // 시간 정체: 매 5턴 자기/적 모두 행동 1턴 무효 (자기 차례도 skip)
+  if (mods.cycle5_both_freeze && G.battle.turn % 5 === 0){
+    log('⏸ 시간 정체 — 둘 다 한 턴 쉼', 'effect');
+    G.player.cycleCounters.freeze = (G.player.cycleCounters.freeze || 0) + 1;
+    G.battle.turn += 1;
+    saveGame();
+    if (G.battle.started && G.battle.active && !G.pendingReward){
+      setTimeout(attack, G.skipping ? SKIP_INTERVAL_MS : TURN_INTERVAL_MS);
+    }
+    return;
+  }
 
   // 신화: 신의 숨결 - 매 턴 적 최대 HP 고정 데미지 (소수점 누적)
   if (mods.true_dmg_pct){
@@ -2394,8 +2610,16 @@ function attack(){
   }
   const lowHpCrit = mods.low_hp_crit && G.player.hp <= ps.hp * (mods.low_hp_crit / 100);
   const desperate = mods.desperate_mult && G.player.hp <= ps.hp * 0.05 ? mods.desperate_mult : 0;
+  // 카오스 주사위 (이번 턴 buff)
+  const _chaosBuff = G.battle._chaosThisTurn || 0;
+  let _atk = (ps.atk + (G.battle.rage || 0)) * (1 + _chaosBuff);
+  // 시간 압축 — 매 5턴 자기 데미지 ×2 (단순화: 추가 차례 = 한 턴에 데미지 2배)
+  if (mods.cycle5_extra_turn && G.battle.turn % 5 === 0){
+    _atk *= 2;
+    log('⏰ 시간 압축 — 자기 공격 ×2', 'effect');
+  }
   const attackerStats = {
-    atk: ps.atk + (G.battle.rage || 0),
+    atk: Math.max(1, Math.floor(_atk)),
     crit: ps.crit, critdmg: ps.critdmg
   };
   const opts = {
@@ -2539,7 +2763,13 @@ function attack(){
   // 흡혈 (lifesteal) — 소수점 누적, 마른 핏줄 저주 시 무효
   if (mods.lifesteal && !mods.curse_no_lifesteal){
     const heal = fractionalApply('lifesteal', dmg * mods.lifesteal / 100);
-    if (heal > 0) healPlayer(heal);
+    if (heal > 0){
+      healPlayer(heal);
+      // M2: 흡정 진화 — 흡혈 발동 시 max HP +N 영구
+      if (mods.lifesteal_evolve){
+        G.player.bonusMaxHp = (G.player.bonusMaxHp || 0) + mods.lifesteal_evolve;
+      }
+    }
   }
   // 치명타 흡정 — 소수점 누적
   if (isCrit && mods.crit_lifesteal){
@@ -2557,7 +2787,13 @@ function attack(){
   if (e.hp <= 0) return endBattle(true);
 
   // 추가타 — opts에서 1회성 보너스(firstblood, dmg_mult) 제외해서 별도 hit
-  if (mods.doublestrike && Math.random() * 100 < mods.doublestrike){
+  // M2: proc_synergy — 흡혈/추가타/회피 1개 발동 시 다른 모두 강제 발동
+  let _doublestrikeFires = mods.doublestrike && Math.random() * 100 < mods.doublestrike;
+  if (mods.proc_synergy && !_doublestrikeFires && (mods.doublestrike > 0)){
+    // 다른 효과 (lifesteal/evade)가 발동했으면 추가타도 발동 — 추적 어려우므로 단순화: synergy 보유 시 doublestrike 확률 +30%
+    if (Math.random() * 100 < (mods.doublestrike + 30)) _doublestrikeFires = true;
+  }
+  if (_doublestrikeFires){
     log('추가타!', 'effect');
     if (typeof trackDoublestrikeProc === 'function') trackDoublestrikeProc();
     const opts2 = { ...opts, firstblood_bonus: 0, dmg_mult: undefined };
@@ -2622,6 +2858,11 @@ function attack(){
       enemyActed = false;
     }
   }
+  // M2: 시작의 정적 — 보스 첫 N턴 적 행동 무효
+  if (enemyActed && mods.boss_silence_3 && e.isBoss && G.battle.turn <= mods.boss_silence_3){
+    enemyActed = false;
+    log(`🔇 시작의 정적 — 적 행동 무효 (${G.battle.turn}/${mods.boss_silence_3})`, 'effect');
+  }
   if (enemyActed){
     // 회피 (player evade 합산값 사용)
     if (ps.evade && Math.random() * 100 < ps.evade){
@@ -2669,6 +2910,14 @@ function attack(){
       // HP 30% 이하 시 데미지 감소 (low_hp_dr)
       if (edmg > 0 && mods.low_hp_dr && G.player.hp <= ps.hp * 0.3){
         edmg = Math.max(1, Math.floor(edmg * (1 - mods.low_hp_dr / 100)));
+      }
+      // M2: 만전 보호 — HP가 max일 때 받는 데미지 -N%
+      if (edmg > 0 && mods.full_hp_dr && G.player.hp >= ps.maxHp){
+        edmg = Math.max(1, Math.floor(edmg * (1 - mods.full_hp_dr / 100)));
+      }
+      // M2: 보스 학살자 — 보스 전투 한정 def +N% (받는 데미지 감소로 적용)
+      if (edmg > 0 && mods.boss_def_pct && e.isBoss){
+        edmg = Math.max(1, Math.floor(edmg * (1 - mods.boss_def_pct / 100 * 0.5)));
       }
       if (edmg > 0 && mods.dmg_reduction){
         edmg = Math.max(1, Math.floor(edmg * (1 - mods.dmg_reduction / 100)));
@@ -2757,6 +3006,10 @@ function endBattle(playerWon){
       G.player.bonusAtk = (G.player.bonusAtk || 0) + mods.on_kill_atk_perm;
       log(`영혼 흡수! 영구 공격력 +${mods.on_kill_atk_perm} (총 +${G.player.bonusAtk})`, 'reward');
     }
+    if (mods.on_kill_atk_perm_v2){
+      G.player.bonusAtk = (G.player.bonusAtk || 0) + mods.on_kill_atk_perm_v2;
+      log(`연쇄 atk! 영구 공격력 +${mods.on_kill_atk_perm_v2} (총 +${G.player.bonusAtk})`, 'reward');
+    }
     if (mods.on_kill_max_hp){
       G.player.bonusMaxHp = (G.player.bonusMaxHp || 0) + mods.on_kill_max_hp;
       G.player.hp += mods.on_kill_max_hp;
@@ -2764,6 +3017,26 @@ function endBattle(playerWon){
     }
     if (mods.on_kill_next_hp_pct){
       G.player.nextEnemyHpReduction = mods.on_kill_next_hp_pct;
+    }
+    // M2: 처치 시 max HP N% 회복
+    if (mods.heal_on_kill){
+      const heal = Math.max(1, Math.floor(maxHp(G.player) * mods.heal_on_kill / 100));
+      healPlayer(heal);
+    }
+    // M2: 처치 시 영혼 +N (즉시 META)
+    if (mods.soul_per_kill && typeof META !== 'undefined'){
+      META.soul += mods.soul_per_kill;
+      if (typeof saveMeta === 'function') saveMeta();
+    }
+    // M2: 보스 처치 시 다음 보스템 옵션 +1 영구
+    if (G.battle.enemy.isBoss && mods.boss_extra_option){
+      G.player.metaBossExtraOption = (G.player.metaBossExtraOption || 0) + 1;
+      log(`각인! 다음 보스템 옵션 +1 (보스템 매번 +1)`, 'reward');
+    }
+    // M2: 이중 보스 — 보스 처치 시 N% 확률 같은 보스 한 번 더
+    if (G.battle.enemy.isBoss && mods.double_boss_chance && Math.random() * 100 < mods.double_boss_chance){
+      G._doubleBossPending = true;
+      log(`👹 이중 보스! 같은 보스 한 번 더 등장`, 'crit');
     }
     log(`>> ${G.battle.enemy.name} 처치!`, 'reward');
     // 메타: 처치 카운터 (영혼/업적용)
@@ -4094,6 +4367,24 @@ function awardSoul(stage, rewardsTaken, bossesBeaten, isWin){
   // 챌린지 배율 적용 (G._challenges는 런 시작 시 META.challengesActive 복사본)
   const mult = challengeSoulMultiplier(G._challenges || {});
   gain = Math.floor(gain * mult);
+  // M2 보스템 패시브: soul_run_mult — 런 종료 영혼 ×(1+v/100)
+  // soul_clear_bonus — 100층 클리어 시 +N
+  // alive_buff — 사망 시 영혼 ×0.5 (살아있을 때 + buff는 computeStats에서 처리됨)
+  if (G.player && G.player.perks){
+    let runMult = 1.0;
+    let clearBonus = 0;
+    let aliveDeathPenalty = 0;
+    for (const p of G.player.perks){
+      for (const m of p.mods){
+        if (m.id === 'soul_run_mult') runMult += m.value / 100;
+        if (m.id === 'soul_clear_bonus' && isWin) clearBonus += m.value;
+        if (m.id === 'alive_buff' && !isWin) aliveDeathPenalty = 0.5;
+      }
+    }
+    if (runMult !== 1.0) gain = Math.floor(gain * runMult);
+    if (clearBonus > 0) gain += clearBonus;
+    if (aliveDeathPenalty > 0) gain = Math.floor(gain * aliveDeathPenalty);
+  }
   META.soul += gain;
   META.stat.totalSoulEarned += gain;
   META.stat.runs += 1;
