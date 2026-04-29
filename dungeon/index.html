@@ -921,13 +921,11 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
   <div class="header">
     <div class="stage-info">
       층 <span id="stage-num">1</span> / 100
-      <span id="gold-display" class="gold-display">💰 0</span>
     </div>
     <div class="title">심 연 의   1 0 0 층</div>
     <div>
       <button id="btn-bgm" title="BGM 토글">🎵</button>
       <button id="btn-sound" title="효과음 토글">🔊</button>
-      <button id="btn-map" title="맵 보기" onclick="showMapModal()">🗺</button>
       <button id="btn-sanctuary" title="성소 — 메타 진행" onclick="showSanctuaryModal()">⛪</button>
       <button id="btn-inv">[I] 인벤</button>
       <button id="btn-restart">재시작</button>
@@ -2484,25 +2482,17 @@ function chooseReward(idx){
   }
   hideModal();
   saveGame();
-  // M4: 분기 맵 흐름 — 보스면 다음 act, 아니면 노드 선택으로
-  if (G.map && G.map.graph){
-    const node = G.map.graph.nodes[G.map.currentNodeId];
-    if (node && node.type === 'boss'){
-      // 보스 처치 후 다음 act 진입 (이중 보스는 일단 act 흐름에서 무시)
-      G._doubleBossPending = false;
-      advanceToNextAct();
-    } else {
-      // 일반/엘리트 — 다음 노드 선택
-      finishNode();
-    }
-    return;
-  }
-  // Legacy 흐름 (G.map 없는 경우 — 기존 게임 호환)
+  // M5: 일직선 100층 흐름 + 다음 스테이지 진입 시 랜덤 이벤트 트리거
   if (G._doubleBossPending){
     G._doubleBossPending = false;
     log('같은 보스 재등장!', 'system');
   } else {
     G.stage += 1;
+  }
+  // 다음 스테이지가 일반 적이면 이벤트 가능성 체크
+  if (typeof maybeTriggerStageEvent === 'function' && maybeTriggerStageEvent()){
+    // 이벤트 발동 — chooseEvent에서 startBattle 호출됨
+    return;
   }
   startBattle();
 }
@@ -4765,388 +4755,236 @@ window.buyRelic = function(id){
 window.showSanctuaryModal = showSanctuaryModal;
 
 
-/* ===== 19-data-map.js ===== */
-
-// depends on: 01-utils
-// 분기 맵 데이터 모델 + 절차적 그래프 생성 (M4)
-//
-// 코쿤 디자인:
-//   - 100층 = 10 act × (9 일반 layers + 1 보스 layer)
-//   - 각 act 안 9 layers, 각 layer에 2~3 노드, 무작위 종류 픽
-//   - 첫 layer는 시작 노드 2~3개, 마지막 일반 layer (9th)는 보스 직전 (HEAL/SHOP 가중)
-//   - 10th layer = BOSS (분기 X, 모든 9th 노드가 보스로 수렴)
-//
-// 노드 종류 (5종 + boss):
-//   battle ⚔ — 일반 전투 (가장 흔함)
-//   elite  ★ — 강한 전투 + 보스템 보장 + 골드 +30
-//   event  ? — 텍스트 3택 모달 (random outcome)
-//   shop   $ — 상점 (골드로 장비/유물/HP 구매)
-//   heal   ♡ — 즉시 max HP 30% 회복
-//   boss   ▲ — act 끝 보스
-
-const NODE_TYPES = {
-  battle: { icon:'⚔', label:'전투',  color:'#aaa' },
-  elite:  { icon:'★', label:'정예',  color:'#ff7ac6' },
-  event:  { icon:'?', label:'이벤트', color:'#5aa9ff' },
-  shop:   { icon:'$', label:'상점',  color:'#ffd23f' },
-  heal:   { icon:'♡', label:'회복',  color:'#5edb7a' },
-  boss:   { icon:'▲', label:'보스',  color:'#ffae5c' }
-};
-
-const ACT_LAYERS = 9;            // 일반 layers 수 (10th = boss)
-const NODES_PER_LAYER_MIN = 2;
-const NODES_PER_LAYER_MAX = 3;
-
-// 일반 layer의 노드 종류 가중치 (첫/마지막 layer는 별도 룰)
-const NODE_WEIGHTS = {
-  battle: 50,
-  elite:  15,
-  event:  15,
-  shop:   10,
-  heal:   10
-};
-
-function pickNodeType(layer){
-  // 첫 layer는 무조건 battle (시작 안전)
-  if (layer === 1) return 'battle';
-  // 마지막 일반 layer (9th) — 보스 직전이므로 heal/shop 가중
-  if (layer === ACT_LAYERS){
-    const r = Math.random();
-    if (r < 0.45) return 'heal';
-    if (r < 0.75) return 'shop';
-    return 'event';
-  }
-  // 일반 layer — 가중치 픽
-  const total = Object.values(NODE_WEIGHTS).reduce((s,v) => s+v, 0);
-  let r = Math.random() * total;
-  for (const [type, w] of Object.entries(NODE_WEIGHTS)){
-    r -= w;
-    if (r <= 0) return type;
-  }
-  return 'battle';
-}
-
-// act N의 그래프 생성
-// 반환: { nodes: { id: nodeData }, startIds: [...], bossId: '...' }
-function generateActGraph(actNum){
-  const nodes = {};
-  const layers = [];
-
-  // 1) 각 layer 노드 생성 (1 ~ ACT_LAYERS)
-  for (let layer = 1; layer <= ACT_LAYERS; layer++){
-    const count = (layer === 1)
-      ? rand(NODES_PER_LAYER_MIN, NODES_PER_LAYER_MAX)
-      : (layer === ACT_LAYERS ? rand(2, 3) : rand(NODES_PER_LAYER_MIN, NODES_PER_LAYER_MAX));
-    const layerNodes = [];
-    for (let i = 0; i < count; i++){
-      const id = `act${actNum}_l${layer}_n${i}`;
-      const type = pickNodeType(layer);
-      const stage = (actNum - 1) * 10 + layer; // 절대 stage 번호
-      nodes[id] = {
-        id, act: actNum, layer, nodeIdx: i,
-        type, stage,
-        visited: false,
-        accessible: layer === 1, // 첫 layer만 처음에 접근 가능
-        edges: []
-      };
-      layerNodes.push(id);
-    }
-    layers.push(layerNodes);
-  }
-
-  // 2) 보스 노드 (10th layer)
-  const bossId = `act${actNum}_boss`;
-  nodes[bossId] = {
-    id: bossId, act: actNum, layer: ACT_LAYERS + 1, nodeIdx: 0,
-    type: 'boss', stage: actNum * 10,
-    visited: false, accessible: false, edges: []
-  };
-
-  // 3) layer 사이 연결 (각 노드 → 다음 layer 노드 1~2개)
-  for (let i = 0; i < layers.length; i++){
-    const cur = layers[i];
-    const nextLayer = (i + 1 < layers.length) ? layers[i + 1] : [bossId];
-    for (const id of cur){
-      // 각 노드는 다음 layer의 1~2 노드와 연결
-      const connectCount = Math.min(rand(1, 2), nextLayer.length);
-      const targets = [];
-      // 우선 자신과 가까운 index 노드부터 (cross-edge 줄임)
-      const srcIdx = nodes[id].nodeIdx;
-      const sortedNext = [...nextLayer].sort((a,b) => {
-        const ai = nodes[a] ? nodes[a].nodeIdx : 0;
-        const bi = nodes[b] ? nodes[b].nodeIdx : 0;
-        return Math.abs(ai - srcIdx) - Math.abs(bi - srcIdx);
-      });
-      for (let k = 0; k < connectCount; k++){
-        targets.push(sortedNext[k]);
-      }
-      nodes[id].edges = targets;
-    }
-  }
-
-  // 4) 다음 layer의 모든 노드가 최소 1개 incoming 보장 (고립 방지)
-  for (let i = 1; i < layers.length; i++){
-    const cur = layers[i];
-    for (const id of cur){
-      // 이전 layer에서 이 노드를 가리키는지 확인
-      const prev = layers[i - 1];
-      const hasIncoming = prev.some(p => nodes[p].edges.includes(id));
-      if (!hasIncoming){
-        // 가장 가까운 prev 노드의 edges에 추가
-        const myIdx = nodes[id].nodeIdx;
-        const closest = [...prev].sort((a,b) => {
-          return Math.abs(nodes[a].nodeIdx - myIdx) - Math.abs(nodes[b].nodeIdx - myIdx);
-        })[0];
-        nodes[closest].edges.push(id);
-      }
-    }
-  }
-  // 보스도 incoming 보장 (마지막 layer 모든 노드가 보스로 연결)
-  for (const id of layers[layers.length - 1]){
-    if (!nodes[id].edges.includes(bossId)) nodes[id].edges.push(bossId);
-  }
-
-  return {
-    actNum,
-    nodes,
-    startIds: layers[0],
-    bossId,
-    layers
-  };
-}
-
-
-/* ===== 20-state-map.js ===== */
-
-// depends on: 08-state, 19-data-map
-// 분기 맵 런타임 상태 — 현재 act, 그래프, 방문 경로, 골드 자원
-
-// G.map 구조:
-// {
-//   act: 1,
-//   graph: { actNum, nodes, startIds, bossId, layers },
-//   currentNodeId: 'act1_l1_n0',
-//   visitedPath: ['act1_l1_n0', ...],
-//   awaitingNodeChoice: false  // true면 사용자가 노드 선택 중
-// }
-// G.gold: 런 한정 골드 자원 (상점용)
-
-function newMapState(){
-  return {
-    act: 0,
-    graph: null,
-    currentNodeId: null,
-    visitedPath: [],
-    awaitingNodeChoice: false
-  };
-}
-
-// 새 act 시작 — 새 그래프 생성
-function startAct(actNum){
-  G.map = G.map || newMapState();
-  G.map.act = actNum;
-  G.map.graph = generateActGraph(actNum);
-  G.map.currentNodeId = null;
-  G.map.visitedPath = [];
-  G.map.awaitingNodeChoice = true;
-  // 시작 노드들 모두 accessible
-  for (const id of G.map.graph.startIds){
-    G.map.graph.nodes[id].accessible = true;
-  }
-}
-
-// 노드 진입 — 사용자가 클릭
-function enterNode(nodeId){
-  if (!G.map || !G.map.graph) return null;
-  const node = G.map.graph.nodes[nodeId];
-  if (!node || !node.accessible || node.visited) return null;
-  // 처음 진입 시 다른 시작 노드들 비활성 (한 노드 선택 시 다른 갈래 막힘 — 일반 분기 맵 룰)
-  if (G.map.visitedPath.length === 0){
-    for (const sid of G.map.graph.startIds){
-      if (sid !== nodeId) G.map.graph.nodes[sid].accessible = false;
-    }
-  }
-  node.visited = true;
-  G.map.currentNodeId = nodeId;
-  G.map.visitedPath.push(nodeId);
-  G.map.awaitingNodeChoice = false;
-  // 다음 layer accessible 표시 (현재 노드의 edges만)
-  for (const eid of node.edges){
-    if (G.map.graph.nodes[eid]){
-      G.map.graph.nodes[eid].accessible = true;
-    }
-  }
-  // 다음 layer의 다른 노드들은 비활성 (이번 노드의 edges에 없으면 막힘)
-  // 단 같은 layer 내 다른 노드는 영향 X
-  G.stage = node.stage;
-  return node;
-}
-
-// 현재 노드 종류로 다음 행동 결정
-function processCurrentNode(){
-  const node = G.map.graph.nodes[G.map.currentNodeId];
-  if (!node) return;
-  switch(node.type){
-    case 'battle':
-    case 'elite':
-    case 'boss':
-      // 전투 — startBattle 호출 (10-combat.js)
-      // elite/boss는 enemy stat 강화 (genEnemy에서 노드 종류 체크)
-      startBattle();
-      break;
-    case 'event':
-      // 이벤트 모달 (21-events.js)
-      if (typeof showEventModal === 'function') showEventModal();
-      break;
-    case 'shop':
-      // 상점 모달 (22-shop.js)
-      if (typeof showShopModal === 'function') showShopModal();
-      break;
-    case 'heal':
-      // 즉시 회복 + 다음 노드 선택으로
-      if (typeof healPlayer === 'function'){
-        const max = (typeof maxHp === 'function') ? maxHp(G.player) : 100;
-        const heal = Math.max(1, Math.floor(max * 0.3));
-        healPlayer(heal, true);
-        if (typeof log === 'function') log('♡ 회복 노드 — HP 30% 회복', 'heal');
-      }
-      // 회복 후 자동으로 다음 노드 선택 화면
-      finishNode();
-      break;
-  }
-}
-
-// 노드 처리 종료 — 다음 노드 선택 가능 상태로
-function finishNode(){
-  if (!G.map) return;
-  G.map.awaitingNodeChoice = true;
-  if (typeof showMapModal === 'function') showMapModal();
-}
-
-// 보스 처치 후 다음 act 진입
-function advanceToNextAct(){
-  const nextAct = (G.map ? G.map.act : 0) + 1;
-  if (nextAct > 10){
-    // 100층 클리어
-    G.won = true;
-    if (typeof showVictoryModal === 'function') showVictoryModal();
-    return;
-  }
-  startAct(nextAct);
-  if (typeof showMapModal === 'function') showMapModal();
-}
-
-// 골드 변경 + 로그
-function addGold(amount, reason){
-  G.gold = (G.gold || 0) + amount;
-  if (typeof log === 'function' && amount !== 0){
-    log(`💰 골드 ${amount > 0 ? '+' : ''}${amount}${reason ? ' ('+reason+')' : ''} (총 ${G.gold})`, 'reward');
-  }
-}
-
-function spendGold(amount){
-  if ((G.gold || 0) < amount) return false;
-  G.gold -= amount;
-  return true;
-}
-
-
 /* ===== 21-events.js ===== */
 
-// depends on: 01-utils, 02-data-rarity, 04-data-perks, 06-data-boss, 08-state, 09-rewards, 10-combat, 14-ui-modal, 17-state-meta, 20-state-map
-// 이벤트 노드 — 텍스트 3택 모달, outcome 처리 (M4)
+// depends on: 01-utils, 02-data-rarity, 03-data-items, 04-data-perks, 06-data-boss, 08-state, 09-rewards, 10-combat, 14-ui-modal, 17-state-meta
+// 랜덤 특수 이벤트 30종 — 매 3~8 stage 주기로 startBattle 직전 발동 (M5)
+//
+// 10 카테고리 × 3 = 30 (서브에이전트 10명 병렬 생성):
+//   신비주의 / 상인거래 / 자연생물 / 던전트랩 / 인간NPC /
+//   보물발견 / 악마지옥 / 신성축복 / 유령언데드 / 시간운명
+//
+// outcome 키:
+//   hp_pct (±N)  · soul (±N)  · perk ('common'|'magic'|'rare')
+//   boss_item (true) · curse (true) · atk_pct_perm (N) · armor (true)
+//   random ([outcome,...])  · {} (효과 없음)
 
 const EVENTS = [
-  { id:'mystery_box', name:'수상한 상자', desc:'먼지 쌓인 상자가 놓여있다.',
+  // === 1) 신비주의 / 주술 ===
+  { id:'witch_cauldron', name:'마녀의 솥', desc:'보글대는 검은 약을 마녀가 권한다.',
     choices: [
-      { label:'열기 (HP -10%)',         outcome:{ hp_pct:-10, gold:50 } },
-      { label:'무시',                   outcome:{} },
-      { label:'부수기 (perk +1)',       outcome:{ perk:'common' } }
+      { label:'한 모금 (랜덤: 회복 +30 / 저주)', outcome:{ random:[{ hp_pct:30 }, { curse:true }] } },
+      { label:'영혼 헌납 (영혼 -15, perk magic)', outcome:{ soul:-15, perk:'magic' } },
+      { label:'자리를 뜬다',                       outcome:{} }
     ] },
-  { id:'wandering_merchant', name:'방랑 상인', desc:'후드를 쓴 상인이 음흉하게 웃는다.',
+  { id:'rune_circle', name:'룬 마법진', desc:'바닥에 새겨진 룬이 희미하게 빛난다.',
     choices: [
-      { label:'흥정 (골드 -30, 보스템 1)', outcome:{ gold:-30, boss_item:true } },
-      { label:'거절',                      outcome:{} },
-      { label:'도둑질 (HP -30%, 보스템 1)', outcome:{ hp_pct:-30, boss_item:true } }
+      { label:'룬을 새긴다 (atk +8% 영구)', outcome:{ atk_pct_perm:8 } },
+      { label:'영혼을 봉인 (영혼 +25)',       outcome:{ soul:25 } },
+      { label:'그냥 지나간다',                outcome:{} }
     ] },
-  { id:'strange_fountain', name:'이상한 분수', desc:'반짝이는 액체가 흐른다.',
+  { id:'cursed_grimoire', name:'저주의 서', desc:'피로 쓰인 책장이 스스로 넘어간다.',
     choices: [
-      { label:'마시기 (HP 100% 회복)',     outcome:{ hp_pct:100 } },
-      { label:'동전 던지기 (50%/50%)',     outcome:{ random:[{hp_pct:100},{curse:true}] } },
-      { label:'무시',                      outcome:{} }
+      { label:'금기를 읊는다 (HP -20%, perk rare, 보스템)', outcome:{ hp_pct:-20, perk:'rare', boss_item:true } },
+      { label:'책을 봉인 (perk common)',                     outcome:{ perk:'common' } },
+      { label:'불태운다 (영혼 +10)',                         outcome:{ soul:10 } }
     ] },
-  { id:'stranger_adventurer', name:'낯선 모험가', desc:'지친 모험가가 도움을 청한다.',
+
+  // === 2) 상인 / 거래 / 도박 ===
+  { id:'black_market', name:'흑시장', desc:'그림자 속 좌판에 핏빛 물건들이 늘어서 있다.',
     choices: [
-      { label:'도와주기 (HP -10%, perk magic)', outcome:{ hp_pct:-10, perk:'magic' } },
-      { label:'거절',                            outcome:{} },
-      { label:'도둑질 (골드 +50, HP -5%)',       outcome:{ gold:50, hp_pct:-5 } }
+      { label:'마법 유물 구매 (영혼 -40, magic perk)', outcome:{ soul:-40, perk:'magic' } },
+      { label:'갑옷 흥정 (영혼 -25, 방어구)',           outcome:{ soul:-25, armor:true } },
+      { label:'그냥 떠난다',                             outcome:{} }
     ] },
-  { id:'ancient_altar', name:'고대 제단', desc:'고대의 룬이 새겨진 제단.',
+  { id:'soul_dice', name:'영혼 도박', desc:'해골 딜러가 뼈주사위를 굴리며 너를 노려본다.',
     choices: [
-      { label:'기도 (영혼 +20, perk rare)',     outcome:{ soul:20, perk:'rare' } },
-      { label:'모독 (골드 +80, 저주 1)',        outcome:{ gold:80, curse:true } },
-      { label:'무시',                            outcome:{} }
+      { label:'영혼 50 베팅', outcome:{ random:[{ soul:120, perk:'rare' }, { soul:-50 }, { soul:-50, curse:true }] } },
+      { label:'HP 베팅 (피로 굴린다)',     outcome:{ random:[{ boss_item:true }, { hp_pct:-40 }, { atk_pct_perm:8 }] } },
+      { label:'테이블을 떠난다',           outcome:{} }
     ] },
-  { id:'old_mage', name:'늙은 마법사', desc:'주름진 마법사가 지팡이를 짚고 있다.',
+  { id:'flesh_pact_dealer', name:'살점 거래상', desc:'살가죽을 두른 상인이 너의 심장을 저울질한다.',
     choices: [
-      { label:'지혜 (perk rare)',                outcome:{ perk:'rare' } },
-      { label:'보호 의뢰 (골드 -50, HP 50%)',    outcome:{ gold:-50, hp_pct:50 } },
-      { label:'무시',                             outcome:{} }
+      { label:'심장 한 조각 (HP -50%, rare perk + 보스템)', outcome:{ hp_pct:-50, perk:'rare', boss_item:true } },
+      { label:'저주받은 계약 (영혼 +80, 저주)',             outcome:{ soul:80, curse:true } },
+      { label:'시선을 피해 도망',                           outcome:{} }
     ] },
-  { id:'tomb', name:'버려진 무덤', desc:'곰팡내 나는 무덤이 입을 벌리고 있다.',
+
+  // === 3) 자연 / 생물 ===
+  { id:'moonlit_spring', name:'달빛 샘', desc:'은은한 달빛이 고인 맑은 샘이 있다.',
     choices: [
-      { label:'도굴 (보스템 1, HP -20%)',       outcome:{ boss_item:true, hp_pct:-20 } },
-      { label:'묵례 (HP +10%)',                  outcome:{ hp_pct:10 } },
-      { label:'무시',                             outcome:{} }
+      { label:'손 씻기 (HP +30%)',         outcome:{ hp_pct:30 } },
+      { label:'얼굴 담그기 (도박)',         outcome:{ random:[{hp_pct:80},{hp_pct:-40}] } },
+      { label:'그냥 지나가기',              outcome:{} }
     ] },
-  { id:'beggar', name:'거지', desc:'배고픈 거지가 손을 내밀고 있다.',
+  { id:'ancient_treant', name:'고대 수목', desc:'뒤틀린 거목이 깊은 숨을 내쉬고 있다.',
     choices: [
-      { label:'적선 (골드 -20, 영혼 +10)',       outcome:{ gold:-20, soul:10 } },
-      { label:'무시',                             outcome:{} },
-      { label:'강도질 (골드 +10)',                outcome:{ gold:10 } }
+      { label:'수액 채집 (영혼 +50)',      outcome:{ soul:50 } },
+      { label:'심장 도려내기 (대박/저주)',  outcome:{ random:[{boss_item:true},{curse:true,hp_pct:-30}] } },
+      { label:'기도 올리기 (perk)',        outcome:{ perk:'common' } }
     ] },
-  { id:'hidden_path', name:'숨겨진 길', desc:'좁은 통로가 보인다.',
+  { id:'crow_swarm', name:'까마귀 떼', desc:'붉은 눈의 까마귀들이 당신을 노려본다.',
     choices: [
-      { label:'지름길 (다음 노드 스킵)',          outcome:{ skip:true } },
-      { label:'탐색 (골드 +30)',                  outcome:{ gold:30 } },
-      { label:'무시',                             outcome:{} }
+      { label:'먹이 주기 (영혼 -20, perk magic)', outcome:{ soul:-20, perk:'magic' } },
+      { label:'사냥 시도 (도박)',                  outcome:{ random:[{atk_pct_perm:10},{hp_pct:-50}] } },
+      { label:'숨죽여 통과',                       outcome:{} }
     ] },
-  { id:'magic_well', name:'마법의 우물', desc:'바닥이 안 보이는 깊은 우물.',
+
+  // === 4) 던전 트랩 ===
+  { id:'pressure_plate_corridor', name:'압력 발판 복도', desc:'바닥의 균열 사이로 의심스러운 발판이 깔려 있다. 끝에 보물상자가 보인다.',
     choices: [
-      { label:'동전 던지기 (perk magic)',         outcome:{ perk:'magic' } },
-      { label:'마시기 (HP -50%, perk rare)',     outcome:{ hp_pct:-50, perk:'rare' } },
-      { label:'무시',                             outcome:{} }
+      { label:'벽을 타고 우회 (안전)',                 outcome:{} },
+      { label:'발판을 신중히 (HP -15%, 영혼 +30)',     outcome:{ hp_pct:-15, soul:30 } },
+      { label:'전속력 돌파 (HP -35%, 보스템)',         outcome:{ hp_pct:-35, boss_item:true } }
     ] },
-  { id:'abandoned_armor', name:'버려진 갑옷', desc:'녹슨 갑옷이 서있다.',
+  { id:'ancient_summon_circle', name:'고대 소환진', desc:'핏빛으로 빛나는 마법진이 당신의 발걸음에 반응한다.',
     choices: [
-      { label:'입기 (armor 1개 추가)',           outcome:{ armor:true } },
-      { label:'부수기 (골드 +30)',                outcome:{ gold:30 } },
-      { label:'무시',                             outcome:{} }
+      { label:'피해 돌아간다 (영혼 +10)',            outcome:{ soul:10 } },
+      { label:'마력 흡수 (HP -20%, magic perk)',     outcome:{ hp_pct:-20, perk:'magic' } },
+      { label:'피의 계약 (저주, atk +15% 영구)',     outcome:{ curse:true, atk_pct_perm:15 } }
     ] },
-  { id:'mystery_potion', name:'수상한 약병', desc:'알 수 없는 액체가 담긴 병.',
+  { id:'arrow_trap_gallery', name:'화살 함정 회랑', desc:'벽 양쪽 구멍에서 살의가 느껴진다. 끝에 녹슨 갑주가 보인다.',
     choices: [
-      { label:'마시기 (50%/50%)',                 outcome:{ random:[{hp_pct:50},{hp_pct:-30}] } },
-      { label:'부수기 (골드 +10)',                outcome:{ gold:10 } },
-      { label:'무시',                             outcome:{} }
+      { label:'방패로 천천히 통과 (HP -10%)',                 outcome:{ hp_pct:-10 } },
+      { label:'구르기 돌파 (HP -25%, 갑주 획득)',             outcome:{ hp_pct:-25, armor:true } },
+      { label:'함정 기관 역이용 (랜덤)',                       outcome:{ random:[{ soul:50 }, { hp_pct:-40 }, { perk:'rare' }] } }
     ] },
-  { id:'devil_deal', name:'악마의 거래', desc:'붉은 눈동자가 음흉하게 빛난다.',
+
+  // === 5) 인간 NPC ===
+  { id:'wounded_adventurer', name:'쓰러진 모험가', desc:'피투성이 모험가가 마지막 숨을 헐떡이며 손을 내민다.',
     choices: [
-      { label:'거래 (영혼 -50, atk +30% 영구)',  outcome:{ soul:-50, atk_pct_perm:30 } },
-      { label:'거절',                              outcome:{} }
+      { label:'치유 나눠주기 (HP -15%, 영혼 +30)',      outcome:{ hp_pct:-15, soul:30 } },
+      { label:'유품 챙기기 (영혼 -20, rare perk)',      outcome:{ soul:-20, perk:'rare' } },
+      { label:'그냥 지나친다',                            outcome:{} }
     ] },
-  { id:'angel_blessing', name:'천사의 가호', desc:'온화한 빛이 내려앉는다.',
+  { id:'shady_priest', name:'수상한 사제', desc:'후드를 깊게 눌러쓴 사제가 헌금을 요구하며 축복을 약속한다.',
     choices: [
-      { label:'기도 (HP 50%, 영혼 -10)',         outcome:{ hp_pct:50, soul:-10 } },
-      { label:'무시',                              outcome:{} }
+      { label:'거액 헌금 (HP -25%, atk +8% 영구)',     outcome:{ hp_pct:-25, atk_pct_perm:8 } },
+      { label:'소액 (magic perk)',                       outcome:{ perk:'magic' } },
+      { label:'사기꾼이다, 공격 (랜덤)',                 outcome:{ random:[{ boss_item:true }, { curse:true }, { hp_pct:-40 }] } }
     ] },
-  { id:'fate_card', name:'운명의 카드', desc:'한 장의 카드가 놓여있다.',
+  { id:'masked_jester', name:'가면의 광대', desc:'광대가 세 개의 컵을 흔들며 게임 한 판을 권한다.',
     choices: [
-      { label:'뽑기 (좋거나 나쁘거나)',           outcome:{ random:[{perk:'rare'},{curse:true},{gold:100},{hp_pct:-30}] } },
-      { label:'무시',                              outcome:{} }
+      { label:'도박 참여',                            outcome:{ random:[{ soul:50 }, { perk:'rare' }, { armor:true }, { curse:true }] } },
+      { label:'광대를 털어버리기 (영혼 -40, 보스템)', outcome:{ soul:-40, boss_item:true } },
+      { label:'정중히 거절 (common perk)',            outcome:{ perk:'common' } }
+    ] },
+
+  // === 6) 보물 / 발견 ===
+  { id:'dust_covered_chest', name:'먼지 쌓인 상자', desc:'구석에 오래 방치된 작은 보물상자가 희미하게 빛난다.',
+    choices: [
+      { label:'조심스럽게 연다 (영혼 +20)',          outcome:{ soul:20 } },
+      { label:'자물쇠를 부순다 (HP -10%, common perk)', outcome:{ hp_pct:-10, perk:'common' } },
+      { label:'그냥 지나친다',                         outcome:{} }
+    ] },
+  { id:'sealed_armory', name:'봉인된 무기고', desc:'녹슨 사슬로 봉인된 문 너머에서 강력한 기운이 새어 나온다.',
+    choices: [
+      { label:'사슬 끊기 (HP -25%, rare perk)',      outcome:{ hp_pct:-25, perk:'rare' } },
+      { label:'주변에서 열쇠 찾기 (랜덤)',            outcome:{ random:[{ perk:'magic' }, { curse:true }] } }
+    ] },
+  { id:'forgotten_scroll', name:'잊혀진 두루마리', desc:'이름 모를 글자가 새겨진 낡은 두루마리가 제단 위에 놓여 있다.',
+    choices: [
+      { label:'주문을 읊는다',                        outcome:{ random:[{ atk_pct_perm:5 }, { curse:true }, { boss_item:true }] } },
+      { label:'두루마리 챙기기 (영혼 +35)',           outcome:{ soul:35 } },
+      { label:'불태운다 (HP +15%)',                   outcome:{ hp_pct:15 } }
+    ] },
+
+  // === 7) 악마 / 지옥 ===
+  { id:'demon_pact', name:'악마의 계약', desc:'피로 물든 양피지가 펼쳐지며 악마가 거래를 제안한다.',
+    choices: [
+      { label:'서명한다 (atk +15% 영구, 저주)', outcome:{ atk_pct_perm:15, curse:true } },
+      { label:'양피지 찢기 (HP -10%)',           outcome:{ hp_pct:-10 } },
+      { label:'조용히 떠난다',                    outcome:{} }
+    ] },
+  { id:'seven_sins_chalice', name:'탐욕의 잔', desc:'일곱 죄악이 새겨진 잔이 검붉은 액체로 가득 차 있다.',
+    choices: [
+      { label:'단숨에 들이켠다',                  outcome:{ random:[{ perk:'rare' }, { boss_item:true }, { hp_pct:-40, curse:true }, { soul:-50 }] } },
+      { label:'한 모금만',                          outcome:{ random:[{ perk:'common' }, { soul:20 }, { hp_pct:-15 }] } },
+      { label:'잔을 엎는다 (영혼 +10)',            outcome:{ soul:10 } }
+    ] },
+  { id:'soul_merchant', name:'영혼 상인', desc:'후드를 쓴 상인이 너의 영혼 한 조각을 사고 싶어한다.',
+    choices: [
+      { label:'영혼 판매 (영혼 -30, magic perk)', outcome:{ soul:-30, perk:'magic' } },
+      { label:'비싸게 판매 (영혼 -60, 갑옷)',      outcome:{ soul:-60, armor:true } },
+      { label:'거절한다 (HP +10%)',                outcome:{ hp_pct:10 } }
+    ] },
+
+  // === 8) 신성 / 축복 ===
+  { id:'fallen_angel_altar', name:'타락한 제단', desc:'한때 신성했던 제단에 검은 핏자국이 흐른다.',
+    choices: [
+      { label:'기도를 올린다 (HP +30%)',          outcome:{ hp_pct:30 } },
+      { label:'제단을 부순다',                     outcome:{ random:[{ soul:40 }, { curse:true }] } },
+      { label:'조용히 지나간다',                   outcome:{} }
+    ] },
+  { id:'weeping_priest', name:'흐느끼는 사제', desc:'눈이 먼 사제가 당신의 손을 잡고 축복을 속삭인다.',
+    choices: [
+      { label:'축복 받기 (magic perk)',           outcome:{ perk:'magic' } },
+      { label:'헌금 (영혼 -30, rare perk)',       outcome:{ soul:-30, perk:'rare' } }
+    ] },
+  { id:'light_of_judgment', name:'심판의 빛', desc:'천장에서 눈부신 빛줄기가 쏟아진다. 그것은 당신을 시험한다.',
+    choices: [
+      { label:'빛 속으로 (전부/전무)',             outcome:{ random:[{ atk_pct_perm:15 }, { hp_pct:-40 }] } },
+      { label:'무릎 꿇기 (갑옷 획득)',            outcome:{ armor:true } },
+      { label:'눈 가리고 도망 (HP -10%)',         outcome:{ hp_pct:-10 } }
+    ] },
+
+  // === 9) 유령 / 언데드 ===
+  { id:'wandering_spirit', name:'떠도는 망령', desc:'복도에 한이 서린 망령이 흐느끼며 당신을 바라본다.',
+    choices: [
+      { label:'영혼 위로 (영혼 -15, magic perk)',         outcome:{ soul:-15, perk:'magic' } },
+      { label:'성수로 정화 (HP -10%, atk +5% 영구)',      outcome:{ hp_pct:-10, atk_pct_perm:5 } },
+      { label:'외면하고 지나간다',                          outcome:{} }
+    ] },
+  { id:'tombstone_pact', name:'묘비의 계약', desc:'이끼 낀 묘비에서 죽은 자의 목소리가 흥정을 제안한다.',
+    choices: [
+      { label:'피를 바친다 (HP -25%, rare perk)',          outcome:{ hp_pct:-25, perk:'rare' } },
+      { label:'영혼 봉납 (영혼 -30, 갑옷)',                  outcome:{ soul:-30, armor:true } },
+      { label:'묘비를 부순다',                                outcome:{ random:[{ curse:true }, { boss_item:true }] } }
+    ] },
+  { id:'lich_whisper', name:'리치의 속삭임', desc:'해골 마법사가 금단의 지식을 귀에 흘려 넣는다.',
+    choices: [
+      { label:'지식을 받아들인다 (저주 + 보스템)',          outcome:{ curse:true, boss_item:true } },
+      { label:'영혼 거래 (영혼 -20, common perk)',          outcome:{ soul:-20, perk:'common' } },
+      { label:'귀를 막고 도망 (HP -5%)',                     outcome:{ hp_pct:-5 } }
+    ] },
+
+  // === 10) 시간 / 운명 ===
+  { id:'tarot_of_fate', name:'운명의 카드', desc:'낡은 점술사가 뒤집힌 카드 세 장을 내민다. 한 장만 뒤집을 수 있다.',
+    choices: [
+      { label:'왼쪽 — 미지의 계시',     outcome:{ random:[{ perk:'rare' }, { curse:true }, { soul:50 }, { hp_pct:-40 }] } },
+      { label:'가운데 — 균형의 길',     outcome:{ random:[{ soul:25 }, { perk:'magic' }, { hp_pct:-15 }] } },
+      { label:'오른쪽 — 파멸의 그림자', outcome:{ random:[{ boss_item:true }, { curse:true }, { atk_pct_perm:15 }, { hp_pct:-60 }] } }
+    ] },
+  { id:'broken_clock_tower', name:'멈춘 시계탑', desc:'100층의 시계가 거꾸로 돌기 시작한다.',
+    choices: [
+      { label:'태엽 감기 (영혼 +40)',     outcome:{ soul:40 } },
+      { label:'초침 부수기 (도박)',        outcome:{ random:[{ perk:'rare' }, { hp_pct:-50 }, { atk_pct_perm:20 }] } },
+      { label:'그냥 지나간다',             outcome:{} }
+    ] },
+  { id:'mirror_of_self', name:'거울 속 나', desc:'거울 너머의 또 다른 내가 손을 내민다. 그의 눈빛이 너무도 공허하다.',
+    choices: [
+      { label:'손을 잡는다 — 동화',       outcome:{ random:[{ atk_pct_perm:25 }, { curse:true }, { perk:'magic' }] } },
+      { label:'거울을 깬다 — 운명 거부',  outcome:{ hp_pct:-25, armor:true } }
     ] }
 ];
 
 let _currentEvent = null;
+
+// 매 stage 시작 직전 호출 — 이벤트 발동 조건 만족 시 모달 띄우고 true 반환
+function maybeTriggerStageEvent(){
+  if (G.stage <= 1) return false; // 첫 스테이지 진입엔 이벤트 X
+  if (G.battle && G.battle.enemy && G.battle.enemy.isBoss) return false; // 보스층엔 X
+  if (G.stage % 10 === 0) return false; // 보스층(10/20/.../100) X
+  if (G._nextEventStage == null){
+    G._nextEventStage = 1 + rand(3, 8);
+  }
+  if (G.stage >= G._nextEventStage){
+    G._nextEventStage = G.stage + rand(3, 8);
+    showEventModal();
+    return true;
+  }
+  return false;
+}
 
 function showEventModal(){
   _currentEvent = choice(EVENTS);
@@ -5167,8 +5005,8 @@ window.chooseEvent = function(idx){
   applyEventOutcome(ch.outcome);
   _currentEvent = null;
   hideModal();
-  // 노드 처리 종료 — 다음 노드 선택
-  if (typeof finishNode === 'function') finishNode();
+  // 이벤트 후 startBattle 진행
+  if (typeof startBattle === 'function') startBattle();
 };
 
 function applyEventOutcome(out){
@@ -5177,19 +5015,14 @@ function applyEventOutcome(out){
     resolved = choice(out.random);
     log(`(랜덤 결과: ${describeOutcome(resolved)})`, 'effect');
   }
-  // hp_pct
   if (resolved.hp_pct){
     const max = maxHp(G.player);
     const delta = Math.floor(max * resolved.hp_pct / 100);
-    if (delta > 0){
-      healPlayer(delta, true);
-    } else if (delta < 0){
+    if (delta > 0) healPlayer(delta, true);
+    else if (delta < 0){
       G.player.hp = Math.max(1, G.player.hp + delta);
-      log(`이벤트로 HP -${-delta}`, 'crit');
+      log(`이벤트로 HP ${delta}`, 'crit');
     }
-  }
-  if (resolved.gold){
-    addGold(resolved.gold, _currentEvent ? _currentEvent.name : '이벤트');
   }
   if (resolved.soul && typeof META !== 'undefined'){
     META.soul = Math.max(0, META.soul + resolved.soul);
@@ -5207,7 +5040,7 @@ function applyEventOutcome(out){
     log(`이벤트 보상: [${RARITY_BY_ID[resolved.perk].name}] ${tpl.name}`, 'reward');
   }
   if (resolved.boss_item){
-    const item = genBossItem((G.map && G.map.act ? G.map.act * 10 : G.stage));
+    const item = genBossItem(Math.max(10, Math.floor(G.stage/10)*10));
     if (item){
       const old = G.player.equipment[item.slot];
       G.player.equipment[item.slot] = item;
@@ -5216,7 +5049,6 @@ function applyEventOutcome(out){
     }
   }
   if (resolved.curse){
-    // BOSS_NEGATIVES 중 1개 perk 형태로 부여 (전투 시 발동)
     const neg = choice(BOSS_NEGATIVES);
     const v = rand(neg.range[0], neg.range[1]);
     G.player.perks.push({
@@ -5228,476 +5060,32 @@ function applyEventOutcome(out){
   }
   if (resolved.atk_pct_perm){
     G.player.perks.push({
-      type:'event-buff', rarity:'rare', name:'[악마] atk +%',
+      type:'event-buff', rarity:'rare', name:'[축복] atk +%',
       mods:[{ id:'atk_pct', value: resolved.atk_pct_perm }],
-      desc: `공격력 +${resolved.atk_pct_perm}%`
+      desc: `공격력 +${resolved.atk_pct_perm}% (영구)`
     });
-    log(`악마의 거래! atk +${resolved.atk_pct_perm}% 영구`, 'reward');
+    log(`atk +${resolved.atk_pct_perm}% 영구 획득`, 'reward');
   }
   if (resolved.armor){
-    // 임의 magic 등급 armor 1개 자동 장착
     if (typeof genItem === 'function'){
       const it = genItem('armor', 'magic', G.stage || 1);
       G.player.equipment.armor = it;
       log(`갑옷 장착: ${it.name}`, 'reward');
     }
   }
-  // skip은 finishNode에서 다음 노드 자동 진입은 너무 큰 변경, 단순 로그만
-  if (resolved.skip){
-    log('지름길 발견! 다음 노드 1개 스킵 (이번엔 단순 보너스 처리: 골드 +20)', 'effect');
-    addGold(20, '지름길');
-  }
 }
 
 function describeOutcome(o){
   const parts = [];
   if (o.hp_pct) parts.push(`HP ${o.hp_pct > 0 ? '+' : ''}${o.hp_pct}%`);
-  if (o.gold) parts.push(`골드 ${o.gold > 0 ? '+' : ''}${o.gold}`);
   if (o.soul) parts.push(`영혼 ${o.soul > 0 ? '+' : ''}${o.soul}`);
   if (o.perk) parts.push(`perk ${o.perk}`);
   if (o.boss_item) parts.push('보스템 1');
   if (o.curse) parts.push('저주 1');
   if (o.atk_pct_perm) parts.push(`atk +${o.atk_pct_perm}% 영구`);
+  if (o.armor) parts.push('갑옷');
   return parts.length ? parts.join(', ') : '없음';
 }
-
-
-/* ===== 22-shop.js ===== */
-
-// depends on: 01-utils, 02-data-rarity, 03-data-items, 04-data-perks, 06-data-boss, 08-state, 09-rewards, 10-combat, 14-ui-modal, 20-state-map
-// 상점 — 골드로 구매 (M4)
-
-const SHOP_OFFERS = [
-  // 가격, 종류, 라벨, 효과
-  { kind:'heal_full', cost: 50,  label:'전체 회복',           desc:'HP 100% 회복' },
-  { kind:'perk_common', cost: 40, label:'일반 perk +1',       desc:'무작위 common perk 1개' },
-  { kind:'perk_magic',  cost: 70, label:'매직 perk +1',       desc:'무작위 magic perk 1개' },
-  { kind:'perk_rare',   cost: 130, label:'레어 perk +1',      desc:'무작위 rare perk 1개' },
-  { kind:'item_random', cost: 80, label:'장비 random',        desc:'무작위 등급 장비 1개' },
-  { kind:'boss_item',   cost: 250, label:'★ 보스템',          desc:'무작위 보스템 1개' },
-  { kind:'soul_buy',    cost: 100, label:'영혼 +20',          desc:'메타 영혼 +20' }
-];
-
-let _shopRolls = null;
-
-function showShopModal(){
-  // 매 입장 시 4개 무작위 픽 (중복 가능)
-  _shopRolls = [];
-  for (let i = 0; i < 4; i++){
-    _shopRolls.push(choice(SHOP_OFFERS));
-  }
-  renderShopModal();
-}
-
-function renderShopModal(){
-  const gold = G.gold || 0;
-  const offersHtml = _shopRolls.map((o, idx) => {
-    const canAfford = gold >= o.cost;
-    return `
-      <div class="shop-offer ${canAfford?'ok':'poor'}">
-        <div class="shop-name">${o.label}</div>
-        <div class="shop-desc">${o.desc}</div>
-        <button class="shop-buy" ${canAfford?'':'disabled'} onclick="buyShop(${idx})">${o.cost} 골드</button>
-      </div>`;
-  }).join('');
-  showModal(`
-    <h2>$ 상점 $</h2>
-    <div class="sub">골드로 구매. 보유: <b style="color:#ffd23f">💰 ${gold}</b></div>
-    <div class="shop-grid">${offersHtml}</div>
-    <div style="text-align:center; margin-top:14px">
-      <button class="skip-reward-btn" onclick="leaveShop()">상점 나가기</button>
-    </div>
-  `);
-}
-
-window.buyShop = function(idx){
-  const o = _shopRolls[idx];
-  if (!o) return;
-  if (!spendGold(o.cost)) return;
-  applyShopPurchase(o);
-  // 사용한 항목은 sold-out으로
-  _shopRolls[idx] = { kind:'sold', cost: 0, label:'(품절)', desc:'이미 구매함' };
-  SoundFx.reward();
-  renderShopModal();
-};
-
-window.leaveShop = function(){
-  hideModal();
-  if (typeof finishNode === 'function') finishNode();
-};
-
-function applyShopPurchase(o){
-  switch(o.kind){
-    case 'heal_full':
-      const max = maxHp(G.player);
-      healPlayer(max, true);
-      break;
-    case 'perk_common':
-    case 'perk_magic':
-    case 'perk_rare': {
-      const rarity = o.kind.replace('perk_','');
-      const tpl = choice(PERKS[rarity]);
-      const val = tpl.range ? rand(tpl.range[0], tpl.range[1]) : 0;
-      const mods = tpl.mods(val);
-      G.player.perks.push({
-        type:'perk', rarity, name: tpl.name, value: val, mods,
-        desc: typeof tpl.desc === 'function' ? tpl.desc(val) : (tpl.desc || tpl.name)
-      });
-      log(`상점 구매: [${RARITY_BY_ID[rarity].name}] ${tpl.name}`, 'reward');
-      break;
-    }
-    case 'item_random': {
-      const slot = weightedChoice(SLOTS).id;
-      const rarity = choice(['common','magic','rare']);
-      const it = genItem(slot, rarity, G.stage || 1);
-      const old = G.player.equipment[it.slot];
-      G.player.equipment[it.slot] = it;
-      log(`상점 구매: ${it.name}`, 'reward');
-      if (old) log(`기존 ${old.name} 폐기`, '');
-      break;
-    }
-    case 'boss_item': {
-      const it = genBossItem((G.map && G.map.act ? G.map.act * 10 : G.stage || 10));
-      if (it){
-        const old = G.player.equipment[it.slot];
-        G.player.equipment[it.slot] = it;
-        log(`★ 상점 구매: ${it.name}`, 'reward');
-        if (old) log(`기존 ${old.name} 폐기`, '');
-      }
-      break;
-    }
-    case 'soul_buy': {
-      META.soul += 20;
-      saveMeta();
-      log('상점 구매: 영혼 +20', 'reward');
-      break;
-    }
-  }
-}
-
-
-/* ===== 23-ui-map.js ===== */
-
-// depends on: 14-ui-modal, 19-data-map, 20-state-map
-// 분기 미니맵 UI — 양피지 두루마리 + SVG 다각형 노드 + Bezier 연결선 (M4 리오나 폴리시)
-//
-// 리오나 디자인 노트:
-//   - 단일 SVG 안에 배경 / 연결선 / 노드 / 텍스트 모두 통합 (일관성)
-//   - 노드 = 육각형 다각형 (룬 카드 인상) + 타입별 SVG 아이콘 + 그라디언트 fill
-//   - 연결선 = cubic Bezier curve, 상태별 dash/glow/색상
-//   - 배경 = noise filter + radial fog + 격자 룬 패턴
-//   - 의도적 비대칭: deterministic random offset (graph seed 기반)
-
-const MAP_VB_W = 760;     // viewBox width
-const MAP_LAYER_H = 82;   // 각 layer 세로 간격 (라벨 제거로 좁힘)
-const MAP_NODE_R = 36;    // 노드 반경 (32→36, 라벨 제거 후 노드 자체를 크게)
-const MAP_BOSS_R = 54;    // 보스 노드 반경
-
-// graph deterministic random — node 위치 약간 흔들기 (seed = nodeId hash)
-function _hashSeed(s){
-  let h = 0;
-  for (let i=0; i<s.length; i++) h = ((h<<5) - h + s.charCodeAt(i)) | 0;
-  return h;
-}
-function _det(seed){
-  // mulberry32
-  return function(){
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-function _nodeXY(nodeId){
-  const node = G.map.graph.nodes[nodeId];
-  if (!node) return null;
-  const isBoss = node.type === 'boss';
-  const layerIndex = isBoss ? ACT_LAYERS : (node.layer - 1);
-  const yBase = (layerIndex + 0.5) * MAP_LAYER_H + 30;
-  // 같은 layer 내 가로 위치
-  let count, idx;
-  if (isBoss){
-    count = 1; idx = 0;
-  } else {
-    const layerArr = G.map.graph.layers[node.layer - 1];
-    count = layerArr.length;
-    idx = layerArr.indexOf(nodeId);
-  }
-  const xBase = ((idx + 0.5) / count) * MAP_VB_W;
-  // deterministic 작은 offset (의도적 비대칭)
-  const r = _det(_hashSeed(nodeId))();
-  const r2 = _det(_hashSeed(nodeId + 'y'))();
-  const dx = (r - 0.5) * 22;
-  const dy = (r2 - 0.5) * 14;
-  return { x: xBase + dx, y: yBase + dy, r: isBoss ? MAP_BOSS_R : MAP_NODE_R };
-}
-
-// 육각형 path (cx,cy,r) — 위쪽 꼭짓점 시작
-function _hexPath(cx, cy, r){
-  const pts = [];
-  for (let i = 0; i < 6; i++){
-    const a = -Math.PI/2 + i * Math.PI/3;
-    pts.push(`${(cx + r*Math.cos(a)).toFixed(1)},${(cy + r*Math.sin(a)).toFixed(1)}`);
-  }
-  return pts.join(' ');
-}
-
-// 노드 종류별 SVG 아이콘 (symbol id로 참조 — 32x32 viewBox)
-const _ICON_DEFS = `
-  <symbol id="icon-battle" viewBox="0 0 32 32">
-    <!-- 두 검 X자 교차: blade + 자루 + 가드 명확히 -->
-    <line x1="9" y1="9" x2="25" y2="25" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-    <line x1="25" y1="9" x2="9" y2="25" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-    <!-- 좌상 자루 -->
-    <line x1="5" y1="5" x2="9" y2="9" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
-    <!-- 우상 자루 -->
-    <line x1="27" y1="5" x2="23" y2="9" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
-    <!-- 좌상 가드 (수직 line) -->
-    <line x1="6" y1="9" x2="9" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <!-- 우상 가드 -->
-    <line x1="26" y1="9" x2="23" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-    <!-- 중심 보석 -->
-    <circle cx="17" cy="17" r="1.6" fill="currentColor"/>
-  </symbol>
-  <symbol id="icon-elite" viewBox="0 0 32 32">
-    <polygon points="16,3 19,12 28,12 21,18 24,28 16,22 8,28 11,18 4,12 13,12" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round"/>
-  </symbol>
-  <symbol id="icon-event" viewBox="0 0 32 32">
-    <text x="16" y="24" text-anchor="middle" font-size="22" font-weight="bold" fill="currentColor">?</text>
-  </symbol>
-  <symbol id="icon-shop" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.4"/>
-    <text x="16" y="22" text-anchor="middle" font-size="16" font-weight="bold" fill="currentColor">$</text>
-  </symbol>
-  <symbol id="icon-heal" viewBox="0 0 32 32">
-    <path d="M16 27 C 6 19, 4 11, 9 8 C 13 5, 16 9, 16 12 C 16 9, 19 5, 23 8 C 28 11, 26 19, 16 27 Z" fill="currentColor"/>
-  </symbol>
-  <symbol id="icon-boss" viewBox="0 0 32 32">
-    <path d="M5 22 L7 9 L13 14 L16 6 L19 14 L25 9 L27 22 Z" fill="currentColor" stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"/>
-    <rect x="5" y="22" width="22" height="3" fill="currentColor"/>
-    <circle cx="11" cy="11" r="1.4" fill="#fff"/>
-    <circle cx="21" cy="11" r="1.4" fill="#fff"/>
-  </symbol>
-`;
-
-function showMapModal(){
-  if (!G.map || !G.map.graph){
-    log('맵이 없습니다.', 'system');
-    return;
-  }
-  const g = G.map.graph;
-  const totalLayers = ACT_LAYERS + 1; // 일반 + 보스
-  const vbH = totalLayers * MAP_LAYER_H + 60;
-  const actLabel = `ACT ${g.actNum}`;
-  const stageLabel = `${(g.actNum-1)*10+1} ~ ${g.actNum*10}층`;
-
-  // 연결선
-  const linesSvg = _renderConnections();
-  // 노드들
-  const nodesSvg = Object.keys(g.nodes).map(id => _renderNodeSvg(id)).join('');
-  // act/stage 라벨 (양피지 두루마리)
-  const headerSvg = `
-    <g class="map-header">
-      <rect x="${MAP_VB_W/2 - 130}" y="6" width="260" height="42" rx="3" fill="url(#scrollGrad)" stroke="#a87c3a" stroke-width="1.2"/>
-      <rect x="${MAP_VB_W/2 - 142}" y="14" width="14" height="26" fill="url(#scrollEnd)" stroke="#7a5618" stroke-width="0.8"/>
-      <rect x="${MAP_VB_W/2 + 128}" y="14" width="14" height="26" fill="url(#scrollEnd)" stroke="#7a5618" stroke-width="0.8"/>
-      <text x="${MAP_VB_W/2}" y="26" text-anchor="middle" font-size="14" font-weight="bold" letter-spacing="6" fill="#3a2a18" font-family="Courier New,monospace">${actLabel}</text>
-      <text x="${MAP_VB_W/2}" y="42" text-anchor="middle" font-size="10" letter-spacing="3" fill="#5a3a18" font-family="Courier New,monospace">${stageLabel}</text>
-    </g>
-  `;
-
-  showModal(`
-    <div class="map-frame">
-      <div class="map-info">
-        <span class="map-gold-pill">💰 ${G.gold||0}</span>
-        <span class="map-status">${_statusHint()}</span>
-      </div>
-      <div class="map-svg-wrap">
-        <svg class="map-svg-v2" viewBox="0 0 ${MAP_VB_W} ${vbH}" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            ${_ICON_DEFS}
-            <!-- 배경 텍스처 noise -->
-            <filter id="bgNoise" x="0" y="0" width="100%" height="100%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="${g.actNum}" stitchTiles="stitch"/>
-              <feColorMatrix values="0 0 0 0 0.18  0 0 0 0 0.13  0 0 0 0 0.07  0 0 0 0.45 0"/>
-              <feComposite in2="SourceGraphic" operator="in"/>
-            </filter>
-            <!-- 글로우 -->
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="4" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <filter id="glowStrong" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="7" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-            <!-- 배경 그라디언트 -->
-            <radialGradient id="bgFog" cx="50%" cy="40%" r="80%">
-              <stop offset="0%" stop-color="#3a2a1a" stop-opacity="0.95"/>
-              <stop offset="60%" stop-color="#1c1208" stop-opacity="0.98"/>
-              <stop offset="100%" stop-color="#0a0604" stop-opacity="1"/>
-            </radialGradient>
-            <!-- 룬 격자 패턴 -->
-            <pattern id="runeGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M0 20 H40 M20 0 V40" stroke="#a87c3a" stroke-width="0.4" stroke-opacity="0.18" fill="none"/>
-              <circle cx="20" cy="20" r="0.8" fill="#a87c3a" fill-opacity="0.25"/>
-            </pattern>
-            <!-- 두루마리 -->
-            <linearGradient id="scrollGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#e8d4a0"/>
-              <stop offset="50%" stop-color="#d4a04a"/>
-              <stop offset="100%" stop-color="#8a5e22"/>
-            </linearGradient>
-            <linearGradient id="scrollEnd" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="#7a5618"/>
-              <stop offset="100%" stop-color="#a87c3a"/>
-            </linearGradient>
-            <!-- 노드 그라디언트 -->
-            <radialGradient id="nodeBg" cx="50%" cy="35%">
-              <stop offset="0%" stop-color="#4a3520"/>
-              <stop offset="100%" stop-color="#180e06"/>
-            </radialGradient>
-            <radialGradient id="nodeBgActive" cx="50%" cy="35%">
-              <stop offset="0%" stop-color="#7a4e22"/>
-              <stop offset="100%" stop-color="#2a1808"/>
-            </radialGradient>
-            <radialGradient id="nodeBgVisited" cx="50%" cy="35%">
-              <stop offset="0%" stop-color="#2a3520"/>
-              <stop offset="100%" stop-color="#0a1408"/>
-            </radialGradient>
-          </defs>
-          <!-- 배경 -->
-          <rect width="100%" height="100%" fill="url(#bgFog)"/>
-          <rect width="100%" height="100%" fill="url(#runeGrid)"/>
-          <rect width="100%" height="100%" filter="url(#bgNoise)"/>
-          <!-- 헤더 두루마리 -->
-          ${headerSvg}
-          <!-- 연결선 -->
-          <g class="map-connections">${linesSvg}</g>
-          <!-- 노드 -->
-          <g class="map-nodes">${nodesSvg}</g>
-        </svg>
-      </div>
-    </div>
-  `);
-}
-
-function _statusHint(){
-  if (G.map.awaitingNodeChoice) return '◇ 다음 노드를 선택하세요';
-  return '◆ 진행 중';
-}
-
-function _renderConnections(){
-  const g = G.map.graph;
-  const out = [];
-  for (const id of Object.keys(g.nodes)){
-    const node = g.nodes[id];
-    const fp = _nodeXY(id); if (!fp) continue;
-    for (const eid of node.edges){
-      const tn = g.nodes[eid]; if (!tn) continue;
-      const tp = _nodeXY(eid); if (!tp) continue;
-      // Bezier curve (위→아래)
-      const fy = fp.y + fp.r * 0.85;
-      const ty = tp.y - tp.r * 0.85;
-      const midY = (fy + ty) / 2;
-      const path = `M${fp.x.toFixed(1)} ${fy.toFixed(1)} C ${fp.x.toFixed(1)} ${midY.toFixed(1)}, ${tp.x.toFixed(1)} ${midY.toFixed(1)}, ${tp.x.toFixed(1)} ${ty.toFixed(1)}`;
-      const fromVisited = node.visited;
-      const toAccessible = tn.accessible;
-      const both = node.visited && tn.visited;
-      let stroke, w, dash, opacity, filter = '';
-      if (both){
-        stroke = '#5edb7a'; w = 2.4; dash = ''; opacity = 0.9; filter = 'url(#glow)';
-      } else if (fromVisited && toAccessible){
-        stroke = '#ffae5c'; w = 2.2; dash = '6 4'; opacity = 0.95; filter = 'url(#glow)';
-      } else if (toAccessible){
-        stroke = '#ffd23f'; w = 1.8; dash = '4 5'; opacity = 0.78;
-      } else {
-        stroke = '#8a6a3a'; w = 1.4; dash = '3 5'; opacity = 0.62;
-      }
-      out.push(`<path d="${path}" stroke="${stroke}" stroke-width="${w}" stroke-dasharray="${dash}" stroke-linecap="round" fill="none" opacity="${opacity}"${filter ? ' filter="' + filter + '"' : ''}/>`);
-    }
-  }
-  return out.join('');
-}
-
-function _renderNodeSvg(nodeId){
-  const node = G.map.graph.nodes[nodeId];
-  if (!node) return '';
-  const t = NODE_TYPES[node.type];
-  const p = _nodeXY(nodeId);
-  if (!p) return '';
-  const isCurrent = G.map.currentNodeId === nodeId;
-  const isVisited = node.visited;
-  const isAccessible = node.accessible && !node.visited;
-  const isLocked = !node.accessible && !node.visited;
-  const isBoss = node.type === 'boss';
-
-  const hex = _hexPath(p.x, p.y, p.r);
-  const innerHex = _hexPath(p.x, p.y, p.r * 0.78);
-  const color = t.color;
-  let bgFill = 'url(#nodeBg)';
-  let strokeColor = '#5a4a30';
-  let strokeW = 1.6;
-  let opacity = 1;
-  let filter = '';
-  let extra = '';
-
-  if (isAccessible){
-    bgFill = 'url(#nodeBgActive)';
-    strokeColor = color;
-    strokeW = 2.4;
-    filter = 'url(#glow)';
-    // 호흡하는 외부 후광
-    extra += `<polygon points="${_hexPath(p.x, p.y, p.r*1.18)}" fill="none" stroke="${color}" stroke-width="1.1" opacity="0.35">
-      <animate attributeName="opacity" values="0.2;0.4;0.2" dur="3s" repeatCount="indefinite"/>
-    </polygon>`;
-  } else if (isCurrent){
-    bgFill = 'url(#nodeBgActive)';
-    strokeColor = '#fff';
-    strokeW = 3;
-    filter = 'url(#glowStrong)';
-  } else if (isVisited){
-    bgFill = 'url(#nodeBgVisited)';
-    strokeColor = '#5edb7a';
-    strokeW = 1.8;
-    opacity = 0.7;
-  } else if (isLocked){
-    opacity = 0.35;
-    strokeColor = '#3a2a1a';
-  }
-
-  const click = isAccessible ? `onclick="pickMapNode('${nodeId}')" style="cursor:pointer"` : '';
-  // 라벨 제거 — native <title> tooltip + 보스만 명시 텍스트
-  const tooltip = isBoss ? 'BOSS — 최종 보스' : t.label;
-  const bossLabel = isBoss
-    ? `<text x="${p.x}" y="${p.y + p.r + 16}" text-anchor="middle" font-size="13" font-weight="bold" letter-spacing="3" fill="${color}" font-family="Courier New,monospace" stroke="#000" stroke-width="2" stroke-linejoin="round" paint-order="stroke">BOSS</text>`
-    : '';
-
-  return `
-    <g class="map-node-g" data-node-id="${nodeId}" opacity="${opacity}" ${click}${filter ? ` filter="${filter}"` : ''}>
-      <title>${tooltip}</title>
-      ${extra}
-      <polygon points="${hex}" fill="${bgFill}" stroke="${strokeColor}" stroke-width="${strokeW}" stroke-linejoin="round"/>
-      <polygon points="${hex}" fill="${color}" opacity="${isAccessible || isCurrent ? 0.22 : (isVisited ? 0.12 : 0.10)}" pointer-events="none"/>
-      <polygon points="${innerHex}" fill="none" stroke="${strokeColor}" stroke-width="0.6" stroke-opacity="0.4"/>
-      <g transform="translate(${p.x - p.r*0.55}, ${p.y - p.r*0.55})" style="color:${color}">
-        <use xlink:href="#icon-${node.type}" width="${p.r * 1.1}" height="${p.r * 1.1}"/>
-      </g>
-      ${bossLabel}
-    </g>
-  `;
-}
-
-window.pickMapNode = function(nodeId){
-  const node = enterNode(nodeId);
-  if (!node) return;
-  SoundFx.select();
-  hideModal();
-  processCurrentNode();
-};
-
-window.showMapModal = showMapModal;
 
 
 /* ===== 30-init.js ===== */
@@ -5709,8 +5097,7 @@ function restart(){
   clearSave();
   G = newGame();
   G._run = { kills: 0, bossesBeaten: 0, lifestealBossKill: 0, thornsTotal: 0 };
-  G.gold = 0;
-  G.map = null;
+  G._nextEventStage = 1 + (typeof rand === 'function' ? rand(3, 8) : 5); // 첫 이벤트 stage
   // 챌린지 활성 토글 스냅샷 — 런 시작 시 복사하여 변경 무시
   G._challenges = (typeof META !== 'undefined' && META.challengesActive)
     ? Object.assign({}, META.challengesActive) : {};
@@ -5724,14 +5111,7 @@ function restart(){
     log(`⚠ 챌린지 ${chalCount}개 활성 — 영혼 ×${challengeSoulMultiplier(G._challenges).toFixed(2)}`, 'system');
   }
   log('새로운 도전이 시작된다.', 'system');
-  // M4: 분기 맵 시작 (act 1)
-  if (typeof startAct === 'function' && typeof showMapModal === 'function'){
-    startAct(1);
-    render();
-    showMapModal();
-  } else {
-    startBattle(); // legacy fallback
-  }
+  startBattle();
 }
 
 function confirmRestart(){
@@ -5795,8 +5175,8 @@ function init(){
   if (typeof loadMeta === 'function') META = loadMeta();
   bindKeys();
   const saved = loadGame();
-  // M4: 분기 맵이 있는 saved만 재개 — 옛 세이브는 새 시작
-  if (saved && !saved.lost && !saved.won && saved.stage && saved.map){
+  // M5: 일직선 saved 그대로 재개 (M4 미니맵 saved는 무시)
+  if (saved && !saved.lost && !saved.won && saved.stage && !saved.map){
     // 새로고침 시 자동으로 이어가기 (확인 팝업 없음)
     G = saved;
     // 옛 저장 데이터 마이그레이션 — 새 필드 채워넣기
@@ -5817,14 +5197,7 @@ function init(){
       log('이어서 진행한다 (보상 선택).', 'system');
       return;
     }
-    // 2) M4: 노드 선택 대기 중이었으면 맵 모달
-    if (G.map && G.map.awaitingNodeChoice){
-      render();
-      if (typeof showMapModal === 'function') showMapModal();
-      log('이어서 진행한다 (맵).', 'system');
-      return;
-    }
-    // 3) 적이 없거나 전투 비활성 → 새 전투 시작
+    // 2) 적이 없거나 전투 비활성 → 새 전투 시작
     if (!G.battle.enemy || !G.battle.active){
       startBattle();
       log('이어서 진행한다.', 'system');
