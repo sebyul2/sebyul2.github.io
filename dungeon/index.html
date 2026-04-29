@@ -69,6 +69,12 @@ img{image-rendering:pixelated; image-rendering:crisp-edges;}
 }
 .title{color:var(--accent); letter-spacing:3px; font-weight:bold}
 .stage-info{color:var(--accent); font-weight:bold; letter-spacing:1px}
+.gold-display{
+  margin-left:10px; padding:1px 6px;
+  background:rgba(255,210,63,0.10);
+  border:1px solid #ffd23f; color:#ffd23f;
+  font-size:11px; letter-spacing:1px;
+}
 .header button{
   background:transparent; color:var(--fg); border:1px solid var(--border);
   padding:5px 10px; font-family:inherit; cursor:pointer; margin-left:4px;
@@ -761,16 +767,132 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
 }
 .ach-unlock + .ach-unlock{ margin-top:4px }
 .ach-unlock b{ color:#ffd23f }
+
+/* === M4 분기 맵 (미니맵 모달) === */
+.map-gold{
+  text-align:center; padding:8px; margin-bottom:10px;
+  background:linear-gradient(90deg, rgba(255,210,63,0.10), rgba(255,210,63,0.20), rgba(255,210,63,0.10));
+  border:1px solid #ffd23f; color:#ffd23f; font-weight:bold; letter-spacing:2px;
+}
+.map-container{
+  position:relative; padding:10px;
+  background:linear-gradient(180deg, rgba(20,15,10,0.5), rgba(0,0,0,0.4));
+  border:1px solid var(--border);
+  max-height:65vh; overflow-y:auto;
+}
+.map-svg{
+  position:absolute; top:0; left:0;
+  pointer-events:none; z-index:1;
+}
+.map-grid{
+  position:relative; z-index:2;
+  display:flex; flex-direction:column; gap:24px;
+}
+.map-layer{
+  display:flex; justify-content:space-around; align-items:center;
+  gap:20px;
+}
+.map-boss-layer{
+  margin-top:8px; padding-top:18px;
+  border-top:2px dashed #ffae5c;
+}
+.map-node{
+  width:62px; height:62px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border:2px solid var(--border);
+  background:var(--panel2);
+  cursor:default; transition:all 0.15s;
+  position:relative;
+}
+.map-node-icon{ font-size:22px; line-height:1; color:var(--node-color, #aaa); text-shadow:0 0 6px currentColor; }
+.map-node-label{ font-size:9px; letter-spacing:1px; margin-top:3px; color:var(--dim); }
+.map-node.accessible{
+  border-color:var(--node-color);
+  box-shadow:0 0 12px var(--node-color);
+  cursor:pointer;
+  animation:nodePulse 1.6s ease infinite;
+}
+.map-node.accessible:hover{
+  transform:translateY(-3px) scale(1.05);
+  box-shadow:0 0 24px var(--node-color);
+}
+.map-node.visited{
+  opacity:0.45; filter:grayscale(0.6);
+  border-color:#5edb7a;
+}
+.map-node.current{
+  border-color:#fff;
+  box-shadow:0 0 20px #fff, 0 0 30px var(--node-color);
+}
+.map-node.locked{
+  opacity:0.3; filter:grayscale(0.7);
+}
+@keyframes nodePulse{
+  0%,100%{ box-shadow:0 0 8px var(--node-color); }
+  50%{ box-shadow:0 0 18px var(--node-color); }
+}
+.map-boss-layer .map-node{
+  width:90px; height:90px;
+  border-color:#ffae5c;
+}
+.map-boss-layer .map-node-icon{ font-size:32px; }
+.map-boss-layer .map-node-label{ font-size:11px; color:#ffae5c; font-weight:bold; }
+
+/* 이벤트 모달 */
+.event-choices{
+  display:flex; flex-direction:column; gap:8px; margin-top:14px;
+}
+.event-choice{
+  padding:12px; background:var(--panel2); color:var(--fg);
+  border:1px solid var(--border); font-family:inherit; font-size:13px;
+  cursor:pointer; letter-spacing:1px; text-align:left;
+}
+.event-choice:hover{ background:var(--border); border-color:var(--accent); color:var(--accent); }
+
+/* 상점 모달 */
+.shop-grid{
+  display:grid; grid-template-columns:repeat(2, 1fr);
+  gap:8px; margin-top:8px;
+}
+.shop-offer{
+  padding:10px; background:var(--panel2);
+  border:2px solid var(--border);
+}
+.shop-offer.ok{ border-color:#ffd23f; box-shadow:0 0 8px rgba(255,210,63,0.2); }
+.shop-offer.poor{ opacity:0.55; }
+.shop-name{ font-weight:bold; color:var(--accent); margin-bottom:4px; }
+.shop-desc{ font-size:11px; color:var(--dim); margin-bottom:8px; }
+.shop-buy{
+  width:100%; padding:6px; font-family:inherit;
+  background:var(--panel); color:#ffd23f; border:1px solid #ffd23f;
+  cursor:pointer; letter-spacing:1px;
+}
+.shop-buy:disabled{ cursor:not-allowed; opacity:0.5; color:var(--dim); border-color:var(--border); }
+.shop-buy:hover:not(:disabled){ background:#ffd23f; color:var(--bg); }
+
+@media(max-width:680px){
+  .map-node{ width:48px; height:48px; }
+  .map-node-icon{ font-size:16px; }
+  .map-node-label{ font-size:8px; }
+  .map-boss-layer .map-node{ width:64px; height:64px; }
+  .map-boss-layer .map-node-icon{ font-size:24px; }
+  .map-layer{ gap:8px; }
+  .shop-grid{ grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="header">
-    <div class="stage-info">층 <span id="stage-num">1</span> / 100</div>
+    <div class="stage-info">
+      층 <span id="stage-num">1</span> / 100
+      <span id="gold-display" class="gold-display">💰 0</span>
+    </div>
     <div class="title">심 연 의   1 0 0 층</div>
     <div>
       <button id="btn-bgm" title="BGM 토글">🎵</button>
       <button id="btn-sound" title="효과음 토글">🔊</button>
+      <button id="btn-map" title="맵 보기" onclick="showMapModal()">🗺</button>
       <button id="btn-sanctuary" title="성소 — 메타 진행" onclick="showSanctuaryModal()">⛪</button>
       <button id="btn-inv">[I] 인벤</button>
       <button id="btn-restart">재시작</button>
@@ -1341,6 +1463,10 @@ function genEnemy(stage){
   let chalAtkMult = 1.0, chalHpMult = 1.0;
   if (chal.enemy_pressure && !isBoss){ chalAtkMult *= 1.25; chalHpMult *= 1.25; }
   if (chal.boss_fury && isBoss){ chalAtkMult *= 1.50; chalHpMult *= 1.50; }
+  // M4: 엘리트 노드 — atk/hp ×1.5
+  const _curNode = (typeof G !== 'undefined' && G.map && G.map.currentNodeId && G.map.graph) ? G.map.graph.nodes[G.map.currentNodeId] : null;
+  const isElite = _curNode && _curNode.type === 'elite';
+  if (isElite){ chalAtkMult *= 1.5; chalHpMult *= 1.5; }
 
   const hp = Math.floor(baseHp * bossMult * finalMult * chalHpMult);
   return {
@@ -2321,15 +2447,28 @@ function chooseReward(idx){
   } else if (G.player.hp > newMax){
     G.player.hp = newMax;
   }
-  // M2: 이중 보스 — stage 그대로 두고 같은 보스 다시
+  hideModal();
+  saveGame();
+  // M4: 분기 맵 흐름 — 보스면 다음 act, 아니면 노드 선택으로
+  if (G.map && G.map.graph){
+    const node = G.map.graph.nodes[G.map.currentNodeId];
+    if (node && node.type === 'boss'){
+      // 보스 처치 후 다음 act 진입 (이중 보스는 일단 act 흐름에서 무시)
+      G._doubleBossPending = false;
+      advanceToNextAct();
+    } else {
+      // 일반/엘리트 — 다음 노드 선택
+      finishNode();
+    }
+    return;
+  }
+  // Legacy 흐름 (G.map 없는 경우 — 기존 게임 호환)
   if (G._doubleBossPending){
     G._doubleBossPending = false;
     log('같은 보스 재등장!', 'system');
   } else {
     G.stage += 1;
   }
-  hideModal();
-  saveGame();
   startBattle();
 }
 
@@ -3042,6 +3181,14 @@ function endBattle(playerWon){
     // 메타: 처치 카운터 (영혼/업적용)
     if (typeof trackEnemyKill === 'function') trackEnemyKill();
     if (G.battle.enemy.isBoss && typeof trackBossKill === 'function') trackBossKill();
+    // M4: 골드 지급 — 일반 +5 / 엘리트 +30 / 보스 +50
+    if (typeof addGold === 'function'){
+      const _node = (G.map && G.map.currentNodeId && G.map.graph) ? G.map.graph.nodes[G.map.currentNodeId] : null;
+      const isElite = _node && _node.type === 'elite';
+      if (G.battle.enemy.isBoss) addGold(50, '보스');
+      else if (isElite) addGold(30, '엘리트');
+      else addGold(5, '처치');
+    }
     // 자폭 유언 — 보스 처치 시 자기 max HP -%
     if (G.battle.enemy.isBoss && mods.curse_explode){
       const dmg = Math.max(1, Math.floor(maxHp(G.player) * mods.curse_explode / 100));
@@ -3528,6 +3675,9 @@ const Bgm = (() => {
 
 function render(){
   $('stage-num').textContent = G.stage;
+  // M4: 골드 표시
+  const goldEl = $('gold-display');
+  if (goldEl) goldEl.textContent = `💰 ${G.gold || 0}`;
   renderPlayer();
   renderEnemy();
   renderActions();
@@ -4580,7 +4730,724 @@ window.buyRelic = function(id){
 window.showSanctuaryModal = showSanctuaryModal;
 
 
-/* ===== 20-init.js ===== */
+/* ===== 19-data-map.js ===== */
+
+// depends on: 01-utils
+// 분기 맵 데이터 모델 + 절차적 그래프 생성 (M4)
+//
+// 코쿤 디자인:
+//   - 100층 = 10 act × (9 일반 layers + 1 보스 layer)
+//   - 각 act 안 9 layers, 각 layer에 2~3 노드, 무작위 종류 픽
+//   - 첫 layer는 시작 노드 2~3개, 마지막 일반 layer (9th)는 보스 직전 (HEAL/SHOP 가중)
+//   - 10th layer = BOSS (분기 X, 모든 9th 노드가 보스로 수렴)
+//
+// 노드 종류 (5종 + boss):
+//   battle ⚔ — 일반 전투 (가장 흔함)
+//   elite  ★ — 강한 전투 + 보스템 보장 + 골드 +30
+//   event  ? — 텍스트 3택 모달 (random outcome)
+//   shop   $ — 상점 (골드로 장비/유물/HP 구매)
+//   heal   ♡ — 즉시 max HP 30% 회복
+//   boss   ▲ — act 끝 보스
+
+const NODE_TYPES = {
+  battle: { icon:'⚔', label:'전투',  color:'#aaa' },
+  elite:  { icon:'★', label:'정예',  color:'#ff7ac6' },
+  event:  { icon:'?', label:'이벤트', color:'#5aa9ff' },
+  shop:   { icon:'$', label:'상점',  color:'#ffd23f' },
+  heal:   { icon:'♡', label:'회복',  color:'#5edb7a' },
+  boss:   { icon:'▲', label:'보스',  color:'#ffae5c' }
+};
+
+const ACT_LAYERS = 9;            // 일반 layers 수 (10th = boss)
+const NODES_PER_LAYER_MIN = 2;
+const NODES_PER_LAYER_MAX = 3;
+
+// 일반 layer의 노드 종류 가중치 (첫/마지막 layer는 별도 룰)
+const NODE_WEIGHTS = {
+  battle: 50,
+  elite:  15,
+  event:  15,
+  shop:   10,
+  heal:   10
+};
+
+function pickNodeType(layer){
+  // 첫 layer는 무조건 battle (시작 안전)
+  if (layer === 1) return 'battle';
+  // 마지막 일반 layer (9th) — 보스 직전이므로 heal/shop 가중
+  if (layer === ACT_LAYERS){
+    const r = Math.random();
+    if (r < 0.45) return 'heal';
+    if (r < 0.75) return 'shop';
+    return 'event';
+  }
+  // 일반 layer — 가중치 픽
+  const total = Object.values(NODE_WEIGHTS).reduce((s,v) => s+v, 0);
+  let r = Math.random() * total;
+  for (const [type, w] of Object.entries(NODE_WEIGHTS)){
+    r -= w;
+    if (r <= 0) return type;
+  }
+  return 'battle';
+}
+
+// act N의 그래프 생성
+// 반환: { nodes: { id: nodeData }, startIds: [...], bossId: '...' }
+function generateActGraph(actNum){
+  const nodes = {};
+  const layers = [];
+
+  // 1) 각 layer 노드 생성 (1 ~ ACT_LAYERS)
+  for (let layer = 1; layer <= ACT_LAYERS; layer++){
+    const count = (layer === 1)
+      ? rand(NODES_PER_LAYER_MIN, NODES_PER_LAYER_MAX)
+      : (layer === ACT_LAYERS ? rand(2, 3) : rand(NODES_PER_LAYER_MIN, NODES_PER_LAYER_MAX));
+    const layerNodes = [];
+    for (let i = 0; i < count; i++){
+      const id = `act${actNum}_l${layer}_n${i}`;
+      const type = pickNodeType(layer);
+      const stage = (actNum - 1) * 10 + layer; // 절대 stage 번호
+      nodes[id] = {
+        id, act: actNum, layer, nodeIdx: i,
+        type, stage,
+        visited: false,
+        accessible: layer === 1, // 첫 layer만 처음에 접근 가능
+        edges: []
+      };
+      layerNodes.push(id);
+    }
+    layers.push(layerNodes);
+  }
+
+  // 2) 보스 노드 (10th layer)
+  const bossId = `act${actNum}_boss`;
+  nodes[bossId] = {
+    id: bossId, act: actNum, layer: ACT_LAYERS + 1, nodeIdx: 0,
+    type: 'boss', stage: actNum * 10,
+    visited: false, accessible: false, edges: []
+  };
+
+  // 3) layer 사이 연결 (각 노드 → 다음 layer 노드 1~2개)
+  for (let i = 0; i < layers.length; i++){
+    const cur = layers[i];
+    const nextLayer = (i + 1 < layers.length) ? layers[i + 1] : [bossId];
+    for (const id of cur){
+      // 각 노드는 다음 layer의 1~2 노드와 연결
+      const connectCount = Math.min(rand(1, 2), nextLayer.length);
+      const targets = [];
+      // 우선 자신과 가까운 index 노드부터 (cross-edge 줄임)
+      const srcIdx = nodes[id].nodeIdx;
+      const sortedNext = [...nextLayer].sort((a,b) => {
+        const ai = nodes[a] ? nodes[a].nodeIdx : 0;
+        const bi = nodes[b] ? nodes[b].nodeIdx : 0;
+        return Math.abs(ai - srcIdx) - Math.abs(bi - srcIdx);
+      });
+      for (let k = 0; k < connectCount; k++){
+        targets.push(sortedNext[k]);
+      }
+      nodes[id].edges = targets;
+    }
+  }
+
+  // 4) 다음 layer의 모든 노드가 최소 1개 incoming 보장 (고립 방지)
+  for (let i = 1; i < layers.length; i++){
+    const cur = layers[i];
+    for (const id of cur){
+      // 이전 layer에서 이 노드를 가리키는지 확인
+      const prev = layers[i - 1];
+      const hasIncoming = prev.some(p => nodes[p].edges.includes(id));
+      if (!hasIncoming){
+        // 가장 가까운 prev 노드의 edges에 추가
+        const myIdx = nodes[id].nodeIdx;
+        const closest = [...prev].sort((a,b) => {
+          return Math.abs(nodes[a].nodeIdx - myIdx) - Math.abs(nodes[b].nodeIdx - myIdx);
+        })[0];
+        nodes[closest].edges.push(id);
+      }
+    }
+  }
+  // 보스도 incoming 보장 (마지막 layer 모든 노드가 보스로 연결)
+  for (const id of layers[layers.length - 1]){
+    if (!nodes[id].edges.includes(bossId)) nodes[id].edges.push(bossId);
+  }
+
+  return {
+    actNum,
+    nodes,
+    startIds: layers[0],
+    bossId,
+    layers
+  };
+}
+
+
+/* ===== 20-state-map.js ===== */
+
+// depends on: 08-state, 19-data-map
+// 분기 맵 런타임 상태 — 현재 act, 그래프, 방문 경로, 골드 자원
+
+// G.map 구조:
+// {
+//   act: 1,
+//   graph: { actNum, nodes, startIds, bossId, layers },
+//   currentNodeId: 'act1_l1_n0',
+//   visitedPath: ['act1_l1_n0', ...],
+//   awaitingNodeChoice: false  // true면 사용자가 노드 선택 중
+// }
+// G.gold: 런 한정 골드 자원 (상점용)
+
+function newMapState(){
+  return {
+    act: 0,
+    graph: null,
+    currentNodeId: null,
+    visitedPath: [],
+    awaitingNodeChoice: false
+  };
+}
+
+// 새 act 시작 — 새 그래프 생성
+function startAct(actNum){
+  G.map = G.map || newMapState();
+  G.map.act = actNum;
+  G.map.graph = generateActGraph(actNum);
+  G.map.currentNodeId = null;
+  G.map.visitedPath = [];
+  G.map.awaitingNodeChoice = true;
+  // 시작 노드들 모두 accessible
+  for (const id of G.map.graph.startIds){
+    G.map.graph.nodes[id].accessible = true;
+  }
+}
+
+// 노드 진입 — 사용자가 클릭
+function enterNode(nodeId){
+  if (!G.map || !G.map.graph) return null;
+  const node = G.map.graph.nodes[nodeId];
+  if (!node || !node.accessible || node.visited) return null;
+  // 처음 진입 시 다른 시작 노드들 비활성 (한 노드 선택 시 다른 갈래 막힘 — 일반 분기 맵 룰)
+  if (G.map.visitedPath.length === 0){
+    for (const sid of G.map.graph.startIds){
+      if (sid !== nodeId) G.map.graph.nodes[sid].accessible = false;
+    }
+  }
+  node.visited = true;
+  G.map.currentNodeId = nodeId;
+  G.map.visitedPath.push(nodeId);
+  G.map.awaitingNodeChoice = false;
+  // 다음 layer accessible 표시 (현재 노드의 edges만)
+  for (const eid of node.edges){
+    if (G.map.graph.nodes[eid]){
+      G.map.graph.nodes[eid].accessible = true;
+    }
+  }
+  // 다음 layer의 다른 노드들은 비활성 (이번 노드의 edges에 없으면 막힘)
+  // 단 같은 layer 내 다른 노드는 영향 X
+  G.stage = node.stage;
+  return node;
+}
+
+// 현재 노드 종류로 다음 행동 결정
+function processCurrentNode(){
+  const node = G.map.graph.nodes[G.map.currentNodeId];
+  if (!node) return;
+  switch(node.type){
+    case 'battle':
+    case 'elite':
+    case 'boss':
+      // 전투 — startBattle 호출 (10-combat.js)
+      // elite/boss는 enemy stat 강화 (genEnemy에서 노드 종류 체크)
+      startBattle();
+      break;
+    case 'event':
+      // 이벤트 모달 (21-events.js)
+      if (typeof showEventModal === 'function') showEventModal();
+      break;
+    case 'shop':
+      // 상점 모달 (22-shop.js)
+      if (typeof showShopModal === 'function') showShopModal();
+      break;
+    case 'heal':
+      // 즉시 회복 + 다음 노드 선택으로
+      if (typeof healPlayer === 'function'){
+        const max = (typeof maxHp === 'function') ? maxHp(G.player) : 100;
+        const heal = Math.max(1, Math.floor(max * 0.3));
+        healPlayer(heal, true);
+        if (typeof log === 'function') log('♡ 회복 노드 — HP 30% 회복', 'heal');
+      }
+      // 회복 후 자동으로 다음 노드 선택 화면
+      finishNode();
+      break;
+  }
+}
+
+// 노드 처리 종료 — 다음 노드 선택 가능 상태로
+function finishNode(){
+  if (!G.map) return;
+  G.map.awaitingNodeChoice = true;
+  if (typeof showMapModal === 'function') showMapModal();
+}
+
+// 보스 처치 후 다음 act 진입
+function advanceToNextAct(){
+  const nextAct = (G.map ? G.map.act : 0) + 1;
+  if (nextAct > 10){
+    // 100층 클리어
+    G.won = true;
+    if (typeof showVictoryModal === 'function') showVictoryModal();
+    return;
+  }
+  startAct(nextAct);
+  if (typeof showMapModal === 'function') showMapModal();
+}
+
+// 골드 변경 + 로그
+function addGold(amount, reason){
+  G.gold = (G.gold || 0) + amount;
+  if (typeof log === 'function' && amount !== 0){
+    log(`💰 골드 ${amount > 0 ? '+' : ''}${amount}${reason ? ' ('+reason+')' : ''} (총 ${G.gold})`, 'reward');
+  }
+}
+
+function spendGold(amount){
+  if ((G.gold || 0) < amount) return false;
+  G.gold -= amount;
+  return true;
+}
+
+
+/* ===== 21-events.js ===== */
+
+// depends on: 01-utils, 02-data-rarity, 04-data-perks, 06-data-boss, 08-state, 09-rewards, 10-combat, 14-ui-modal, 17-state-meta, 20-state-map
+// 이벤트 노드 — 텍스트 3택 모달, outcome 처리 (M4)
+
+const EVENTS = [
+  { id:'mystery_box', name:'수상한 상자', desc:'먼지 쌓인 상자가 놓여있다.',
+    choices: [
+      { label:'열기 (HP -10%)',         outcome:{ hp_pct:-10, gold:50 } },
+      { label:'무시',                   outcome:{} },
+      { label:'부수기 (perk +1)',       outcome:{ perk:'common' } }
+    ] },
+  { id:'wandering_merchant', name:'방랑 상인', desc:'후드를 쓴 상인이 음흉하게 웃는다.',
+    choices: [
+      { label:'흥정 (골드 -30, 보스템 1)', outcome:{ gold:-30, boss_item:true } },
+      { label:'거절',                      outcome:{} },
+      { label:'도둑질 (HP -30%, 보스템 1)', outcome:{ hp_pct:-30, boss_item:true } }
+    ] },
+  { id:'strange_fountain', name:'이상한 분수', desc:'반짝이는 액체가 흐른다.',
+    choices: [
+      { label:'마시기 (HP 100% 회복)',     outcome:{ hp_pct:100 } },
+      { label:'동전 던지기 (50%/50%)',     outcome:{ random:[{hp_pct:100},{curse:true}] } },
+      { label:'무시',                      outcome:{} }
+    ] },
+  { id:'stranger_adventurer', name:'낯선 모험가', desc:'지친 모험가가 도움을 청한다.',
+    choices: [
+      { label:'도와주기 (HP -10%, perk magic)', outcome:{ hp_pct:-10, perk:'magic' } },
+      { label:'거절',                            outcome:{} },
+      { label:'도둑질 (골드 +50, HP -5%)',       outcome:{ gold:50, hp_pct:-5 } }
+    ] },
+  { id:'ancient_altar', name:'고대 제단', desc:'고대의 룬이 새겨진 제단.',
+    choices: [
+      { label:'기도 (영혼 +20, perk rare)',     outcome:{ soul:20, perk:'rare' } },
+      { label:'모독 (골드 +80, 저주 1)',        outcome:{ gold:80, curse:true } },
+      { label:'무시',                            outcome:{} }
+    ] },
+  { id:'old_mage', name:'늙은 마법사', desc:'주름진 마법사가 지팡이를 짚고 있다.',
+    choices: [
+      { label:'지혜 (perk rare)',                outcome:{ perk:'rare' } },
+      { label:'보호 의뢰 (골드 -50, HP 50%)',    outcome:{ gold:-50, hp_pct:50 } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'tomb', name:'버려진 무덤', desc:'곰팡내 나는 무덤이 입을 벌리고 있다.',
+    choices: [
+      { label:'도굴 (보스템 1, HP -20%)',       outcome:{ boss_item:true, hp_pct:-20 } },
+      { label:'묵례 (HP +10%)',                  outcome:{ hp_pct:10 } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'beggar', name:'거지', desc:'배고픈 거지가 손을 내밀고 있다.',
+    choices: [
+      { label:'적선 (골드 -20, 영혼 +10)',       outcome:{ gold:-20, soul:10 } },
+      { label:'무시',                             outcome:{} },
+      { label:'강도질 (골드 +10)',                outcome:{ gold:10 } }
+    ] },
+  { id:'hidden_path', name:'숨겨진 길', desc:'좁은 통로가 보인다.',
+    choices: [
+      { label:'지름길 (다음 노드 스킵)',          outcome:{ skip:true } },
+      { label:'탐색 (골드 +30)',                  outcome:{ gold:30 } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'magic_well', name:'마법의 우물', desc:'바닥이 안 보이는 깊은 우물.',
+    choices: [
+      { label:'동전 던지기 (perk magic)',         outcome:{ perk:'magic' } },
+      { label:'마시기 (HP -50%, perk rare)',     outcome:{ hp_pct:-50, perk:'rare' } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'abandoned_armor', name:'버려진 갑옷', desc:'녹슨 갑옷이 서있다.',
+    choices: [
+      { label:'입기 (armor 1개 추가)',           outcome:{ armor:true } },
+      { label:'부수기 (골드 +30)',                outcome:{ gold:30 } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'mystery_potion', name:'수상한 약병', desc:'알 수 없는 액체가 담긴 병.',
+    choices: [
+      { label:'마시기 (50%/50%)',                 outcome:{ random:[{hp_pct:50},{hp_pct:-30}] } },
+      { label:'부수기 (골드 +10)',                outcome:{ gold:10 } },
+      { label:'무시',                             outcome:{} }
+    ] },
+  { id:'devil_deal', name:'악마의 거래', desc:'붉은 눈동자가 음흉하게 빛난다.',
+    choices: [
+      { label:'거래 (영혼 -50, atk +30% 영구)',  outcome:{ soul:-50, atk_pct_perm:30 } },
+      { label:'거절',                              outcome:{} }
+    ] },
+  { id:'angel_blessing', name:'천사의 가호', desc:'온화한 빛이 내려앉는다.',
+    choices: [
+      { label:'기도 (HP 50%, 영혼 -10)',         outcome:{ hp_pct:50, soul:-10 } },
+      { label:'무시',                              outcome:{} }
+    ] },
+  { id:'fate_card', name:'운명의 카드', desc:'한 장의 카드가 놓여있다.',
+    choices: [
+      { label:'뽑기 (좋거나 나쁘거나)',           outcome:{ random:[{perk:'rare'},{curse:true},{gold:100},{hp_pct:-30}] } },
+      { label:'무시',                              outcome:{} }
+    ] }
+];
+
+let _currentEvent = null;
+
+function showEventModal(){
+  _currentEvent = choice(EVENTS);
+  const choicesHtml = _currentEvent.choices.map((c, idx) =>
+    `<button class="event-choice" onclick="chooseEvent(${idx})">${c.label}</button>`
+  ).join('');
+  showModal(`
+    <h2>? ${_currentEvent.name} ?</h2>
+    <div class="sub">${_currentEvent.desc}</div>
+    <div class="event-choices">${choicesHtml}</div>
+  `);
+}
+
+window.chooseEvent = function(idx){
+  if (!_currentEvent) return;
+  const ch = _currentEvent.choices[idx];
+  if (!ch) return;
+  applyEventOutcome(ch.outcome);
+  _currentEvent = null;
+  hideModal();
+  // 노드 처리 종료 — 다음 노드 선택
+  if (typeof finishNode === 'function') finishNode();
+};
+
+function applyEventOutcome(out){
+  let resolved = out;
+  if (out.random){
+    resolved = choice(out.random);
+    log(`(랜덤 결과: ${describeOutcome(resolved)})`, 'effect');
+  }
+  // hp_pct
+  if (resolved.hp_pct){
+    const max = maxHp(G.player);
+    const delta = Math.floor(max * resolved.hp_pct / 100);
+    if (delta > 0){
+      healPlayer(delta, true);
+    } else if (delta < 0){
+      G.player.hp = Math.max(1, G.player.hp + delta);
+      log(`이벤트로 HP -${-delta}`, 'crit');
+    }
+  }
+  if (resolved.gold){
+    addGold(resolved.gold, _currentEvent ? _currentEvent.name : '이벤트');
+  }
+  if (resolved.soul && typeof META !== 'undefined'){
+    META.soul = Math.max(0, META.soul + resolved.soul);
+    if (typeof saveMeta === 'function') saveMeta();
+    log(`이벤트로 영혼 ${resolved.soul > 0 ? '+' : ''}${resolved.soul}`, 'reward');
+  }
+  if (resolved.perk){
+    const tpl = choice(PERKS[resolved.perk] || PERKS.common);
+    const val = tpl.range ? rand(tpl.range[0], tpl.range[1]) : 0;
+    const mods = tpl.mods(val);
+    G.player.perks.push({
+      type:'perk', rarity: resolved.perk, name: tpl.name, value: val, mods,
+      desc: typeof tpl.desc === 'function' ? tpl.desc(val) : (tpl.desc || tpl.name)
+    });
+    log(`이벤트 보상: [${RARITY_BY_ID[resolved.perk].name}] ${tpl.name}`, 'reward');
+  }
+  if (resolved.boss_item){
+    const item = genBossItem((G.map && G.map.act ? G.map.act * 10 : G.stage));
+    if (item){
+      const old = G.player.equipment[item.slot];
+      G.player.equipment[item.slot] = item;
+      log(`★ 보스템 획득: ${item.name}`, 'reward');
+      if (old) log(`기존 ${old.name} 폐기`, '');
+    }
+  }
+  if (resolved.curse){
+    // BOSS_NEGATIVES 중 1개 perk 형태로 부여 (전투 시 발동)
+    const neg = choice(BOSS_NEGATIVES);
+    const v = rand(neg.range[0], neg.range[1]);
+    G.player.perks.push({
+      type:'event-curse', rarity:'common', name:`[저주] ${_currentEvent ? _currentEvent.name : ''}`,
+      mods:[{ id: neg.id, value: v }],
+      desc: neg.label(v)
+    });
+    log(`☠ 저주 부여: ${neg.label(v)}`, 'crit');
+  }
+  if (resolved.atk_pct_perm){
+    G.player.perks.push({
+      type:'event-buff', rarity:'rare', name:'[악마] atk +%',
+      mods:[{ id:'atk_pct', value: resolved.atk_pct_perm }],
+      desc: `공격력 +${resolved.atk_pct_perm}%`
+    });
+    log(`악마의 거래! atk +${resolved.atk_pct_perm}% 영구`, 'reward');
+  }
+  if (resolved.armor){
+    // 임의 magic 등급 armor 1개 자동 장착
+    if (typeof genItem === 'function'){
+      const it = genItem('armor', 'magic', G.stage || 1);
+      G.player.equipment.armor = it;
+      log(`갑옷 장착: ${it.name}`, 'reward');
+    }
+  }
+  // skip은 finishNode에서 다음 노드 자동 진입은 너무 큰 변경, 단순 로그만
+  if (resolved.skip){
+    log('지름길 발견! 다음 노드 1개 스킵 (이번엔 단순 보너스 처리: 골드 +20)', 'effect');
+    addGold(20, '지름길');
+  }
+}
+
+function describeOutcome(o){
+  const parts = [];
+  if (o.hp_pct) parts.push(`HP ${o.hp_pct > 0 ? '+' : ''}${o.hp_pct}%`);
+  if (o.gold) parts.push(`골드 ${o.gold > 0 ? '+' : ''}${o.gold}`);
+  if (o.soul) parts.push(`영혼 ${o.soul > 0 ? '+' : ''}${o.soul}`);
+  if (o.perk) parts.push(`perk ${o.perk}`);
+  if (o.boss_item) parts.push('보스템 1');
+  if (o.curse) parts.push('저주 1');
+  if (o.atk_pct_perm) parts.push(`atk +${o.atk_pct_perm}% 영구`);
+  return parts.length ? parts.join(', ') : '없음';
+}
+
+
+/* ===== 22-shop.js ===== */
+
+// depends on: 01-utils, 02-data-rarity, 03-data-items, 04-data-perks, 06-data-boss, 08-state, 09-rewards, 10-combat, 14-ui-modal, 20-state-map
+// 상점 — 골드로 구매 (M4)
+
+const SHOP_OFFERS = [
+  // 가격, 종류, 라벨, 효과
+  { kind:'heal_full', cost: 50,  label:'전체 회복',           desc:'HP 100% 회복' },
+  { kind:'perk_common', cost: 40, label:'일반 perk +1',       desc:'무작위 common perk 1개' },
+  { kind:'perk_magic',  cost: 70, label:'매직 perk +1',       desc:'무작위 magic perk 1개' },
+  { kind:'perk_rare',   cost: 130, label:'레어 perk +1',      desc:'무작위 rare perk 1개' },
+  { kind:'item_random', cost: 80, label:'장비 random',        desc:'무작위 등급 장비 1개' },
+  { kind:'boss_item',   cost: 250, label:'★ 보스템',          desc:'무작위 보스템 1개' },
+  { kind:'soul_buy',    cost: 100, label:'영혼 +20',          desc:'메타 영혼 +20' }
+];
+
+let _shopRolls = null;
+
+function showShopModal(){
+  // 매 입장 시 4개 무작위 픽 (중복 가능)
+  _shopRolls = [];
+  for (let i = 0; i < 4; i++){
+    _shopRolls.push(choice(SHOP_OFFERS));
+  }
+  renderShopModal();
+}
+
+function renderShopModal(){
+  const gold = G.gold || 0;
+  const offersHtml = _shopRolls.map((o, idx) => {
+    const canAfford = gold >= o.cost;
+    return `
+      <div class="shop-offer ${canAfford?'ok':'poor'}">
+        <div class="shop-name">${o.label}</div>
+        <div class="shop-desc">${o.desc}</div>
+        <button class="shop-buy" ${canAfford?'':'disabled'} onclick="buyShop(${idx})">${o.cost} 골드</button>
+      </div>`;
+  }).join('');
+  showModal(`
+    <h2>$ 상점 $</h2>
+    <div class="sub">골드로 구매. 보유: <b style="color:#ffd23f">💰 ${gold}</b></div>
+    <div class="shop-grid">${offersHtml}</div>
+    <div style="text-align:center; margin-top:14px">
+      <button class="skip-reward-btn" onclick="leaveShop()">상점 나가기</button>
+    </div>
+  `);
+}
+
+window.buyShop = function(idx){
+  const o = _shopRolls[idx];
+  if (!o) return;
+  if (!spendGold(o.cost)) return;
+  applyShopPurchase(o);
+  // 사용한 항목은 sold-out으로
+  _shopRolls[idx] = { kind:'sold', cost: 0, label:'(품절)', desc:'이미 구매함' };
+  SoundFx.reward();
+  renderShopModal();
+};
+
+window.leaveShop = function(){
+  hideModal();
+  if (typeof finishNode === 'function') finishNode();
+};
+
+function applyShopPurchase(o){
+  switch(o.kind){
+    case 'heal_full':
+      const max = maxHp(G.player);
+      healPlayer(max, true);
+      break;
+    case 'perk_common':
+    case 'perk_magic':
+    case 'perk_rare': {
+      const rarity = o.kind.replace('perk_','');
+      const tpl = choice(PERKS[rarity]);
+      const val = tpl.range ? rand(tpl.range[0], tpl.range[1]) : 0;
+      const mods = tpl.mods(val);
+      G.player.perks.push({
+        type:'perk', rarity, name: tpl.name, value: val, mods,
+        desc: typeof tpl.desc === 'function' ? tpl.desc(val) : (tpl.desc || tpl.name)
+      });
+      log(`상점 구매: [${RARITY_BY_ID[rarity].name}] ${tpl.name}`, 'reward');
+      break;
+    }
+    case 'item_random': {
+      const slot = weightedChoice(SLOTS).id;
+      const rarity = choice(['common','magic','rare']);
+      const it = genItem(slot, rarity, G.stage || 1);
+      const old = G.player.equipment[it.slot];
+      G.player.equipment[it.slot] = it;
+      log(`상점 구매: ${it.name}`, 'reward');
+      if (old) log(`기존 ${old.name} 폐기`, '');
+      break;
+    }
+    case 'boss_item': {
+      const it = genBossItem((G.map && G.map.act ? G.map.act * 10 : G.stage || 10));
+      if (it){
+        const old = G.player.equipment[it.slot];
+        G.player.equipment[it.slot] = it;
+        log(`★ 상점 구매: ${it.name}`, 'reward');
+        if (old) log(`기존 ${old.name} 폐기`, '');
+      }
+      break;
+    }
+    case 'soul_buy': {
+      META.soul += 20;
+      saveMeta();
+      log('상점 구매: 영혼 +20', 'reward');
+      break;
+    }
+  }
+}
+
+
+/* ===== 23-ui-map.js ===== */
+
+// depends on: 14-ui-modal, 19-data-map, 20-state-map
+// 분기 미니맵 UI — modal 형태, 9 layers + boss, SVG 연결선 (M4)
+
+function showMapModal(){
+  if (!G.map || !G.map.graph){
+    log('맵이 없습니다.', 'system');
+    return;
+  }
+  const g = G.map.graph;
+  const goldHtml = `<div class="map-gold">💰 ${G.gold||0} 골드</div>`;
+  const actLabel = `Act ${g.actNum} — ${(g.actNum-1)*10+1}~${g.actNum*10}층`;
+
+  // 9 layers + boss layer
+  const layersHtml = [];
+  for (let layer = 1; layer <= ACT_LAYERS; layer++){
+    const layerNodes = g.layers[layer - 1];
+    const nodesHtml = layerNodes.map(id => _renderNode(id)).join('');
+    layersHtml.push(`<div class="map-layer" data-layer="${layer}">${nodesHtml}</div>`);
+  }
+  // Boss layer
+  layersHtml.push(`<div class="map-layer map-boss-layer" data-layer="boss">${_renderNode(g.bossId)}</div>`);
+
+  showModal(`
+    <h2>🗺 ${actLabel}</h2>
+    <div class="sub">노드를 선택하여 진행하세요. 한 번 선택한 갈래는 되돌릴 수 없습니다.</div>
+    ${goldHtml}
+    <div class="map-container">
+      <svg class="map-svg" id="map-svg"></svg>
+      <div class="map-grid" id="map-grid">
+        ${layersHtml.join('')}
+      </div>
+    </div>
+  `);
+
+  // SVG 라인 그리기 (DOM 렌더링 후)
+  setTimeout(_drawMapLines, 50);
+}
+
+function _renderNode(nodeId){
+  const node = G.map.graph.nodes[nodeId];
+  if (!node) return '';
+  const t = NODE_TYPES[node.type];
+  const isCurrent = G.map.currentNodeId === nodeId;
+  let cls = 'map-node';
+  if (node.visited) cls += ' visited';
+  if (isCurrent) cls += ' current';
+  if (node.accessible && !node.visited) cls += ' accessible';
+  if (!node.accessible && !node.visited) cls += ' locked';
+  const click = (node.accessible && !node.visited) ? `onclick="pickMapNode('${nodeId}')"` : '';
+  return `
+    <div class="${cls}" data-node-id="${nodeId}" style="--node-color:${t.color}" ${click}>
+      <div class="map-node-icon">${t.icon}</div>
+      <div class="map-node-label">${t.label}</div>
+    </div>`;
+}
+
+function _drawMapLines(){
+  const svg = document.getElementById('map-svg');
+  const grid = document.getElementById('map-grid');
+  if (!svg || !grid || !G.map || !G.map.graph) return;
+  const gridRect = grid.getBoundingClientRect();
+  svg.setAttribute('width', gridRect.width);
+  svg.setAttribute('height', gridRect.height);
+  svg.innerHTML = '';
+  const g = G.map.graph;
+  for (const id of Object.keys(g.nodes)){
+    const node = g.nodes[id];
+    const fromEl = grid.querySelector(`[data-node-id="${id}"]`);
+    if (!fromEl) continue;
+    const fromRect = fromEl.getBoundingClientRect();
+    const fx = fromRect.left + fromRect.width / 2 - gridRect.left;
+    const fy = fromRect.top + fromRect.height - gridRect.top;
+    for (const eid of node.edges){
+      const toEl = grid.querySelector(`[data-node-id="${eid}"]`);
+      if (!toEl) continue;
+      const toRect = toEl.getBoundingClientRect();
+      const tx = toRect.left + toRect.width / 2 - gridRect.left;
+      const ty = toRect.top - gridRect.top;
+      const isVisited = node.visited && g.nodes[eid] && g.nodes[eid].visited;
+      const stroke = isVisited ? '#5edb7a' : (g.nodes[eid] && g.nodes[eid].accessible ? '#ffae5c' : '#5a4a30');
+      const w = isVisited ? 2.5 : 1.5;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
+      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+      line.setAttribute('stroke', stroke);
+      line.setAttribute('stroke-width', w);
+      line.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(line);
+    }
+  }
+}
+
+window.pickMapNode = function(nodeId){
+  const node = enterNode(nodeId);
+  if (!node) return;
+  SoundFx.select();
+  hideModal();
+  // 노드 종류에 따라 처리
+  processCurrentNode();
+};
+
+window.showMapModal = showMapModal;
+
+
+/* ===== 30-init.js ===== */
 
 // depends on: 08-state, 10-combat, 11-audio-sfx, 12-audio-bgm, 13-ui-render, 14-ui-modal, 17-state-meta, 18-ui-meta
 // 부팅, 키 바인딩, 재시작, 세이브 마이그레이션
@@ -4589,6 +5456,8 @@ function restart(){
   clearSave();
   G = newGame();
   G._run = { kills: 0, bossesBeaten: 0, lifestealBossKill: 0, thornsTotal: 0 };
+  G.gold = 0;
+  G.map = null;
   // 챌린지 활성 토글 스냅샷 — 런 시작 시 복사하여 변경 무시
   G._challenges = (typeof META !== 'undefined' && META.challengesActive)
     ? Object.assign({}, META.challengesActive) : {};
@@ -4602,7 +5471,14 @@ function restart(){
     log(`⚠ 챌린지 ${chalCount}개 활성 — 영혼 ×${challengeSoulMultiplier(G._challenges).toFixed(2)}`, 'system');
   }
   log('새로운 도전이 시작된다.', 'system');
-  startBattle();
+  // M4: 분기 맵 시작 (act 1)
+  if (typeof startAct === 'function' && typeof showMapModal === 'function'){
+    startAct(1);
+    render();
+    showMapModal();
+  } else {
+    startBattle(); // legacy fallback
+  }
 }
 
 function confirmRestart(){
@@ -4666,7 +5542,8 @@ function init(){
   if (typeof loadMeta === 'function') META = loadMeta();
   bindKeys();
   const saved = loadGame();
-  if (saved && !saved.lost && !saved.won && saved.stage){
+  // M4: 분기 맵이 있는 saved만 재개 — 옛 세이브는 새 시작
+  if (saved && !saved.lost && !saved.won && saved.stage && saved.map){
     // 새로고침 시 자동으로 이어가기 (확인 팝업 없음)
     G = saved;
     // 옛 저장 데이터 마이그레이션 — 새 필드 채워넣기
@@ -4687,7 +5564,14 @@ function init(){
       log('이어서 진행한다 (보상 선택).', 'system');
       return;
     }
-    // 2) 적이 없거나 전투 비활성 → 새 전투 시작
+    // 2) M4: 노드 선택 대기 중이었으면 맵 모달
+    if (G.map && G.map.awaitingNodeChoice){
+      render();
+      if (typeof showMapModal === 'function') showMapModal();
+      log('이어서 진행한다 (맵).', 'system');
+      return;
+    }
+    // 3) 적이 없거나 전투 비활성 → 새 전투 시작
     if (!G.battle.enemy || !G.battle.active){
       startBattle();
       log('이어서 진행한다.', 'system');
