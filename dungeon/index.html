@@ -768,7 +768,42 @@ body.modal-open{overflow:hidden; position:fixed; width:100%}
 .ach-unlock + .ach-unlock{ margin-top:4px }
 .ach-unlock b{ color:#ffd23f }
 
-/* === M4 분기 맵 (미니맵 모달) === */
+/* === M4 분기 맵 (리오나 디자인 v2) === */
+.map-frame{
+  background: linear-gradient(180deg, #1c1208 0%, #0a0604 100%);
+  border:2px solid var(--border);
+  padding:10px;
+  position:relative;
+}
+.map-frame::before{
+  content:''; position:absolute; inset:6px;
+  border:1px solid #a87c3a;
+  pointer-events:none; opacity:0.35;
+}
+.map-info{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:4px 12px; margin-bottom:6px;
+  font-size:11px; letter-spacing:2px;
+}
+.map-gold-pill{
+  padding:3px 10px;
+  background:linear-gradient(180deg, rgba(255,210,63,0.20), rgba(255,210,63,0.05));
+  border:1px solid #ffd23f; color:#ffd23f;
+  font-weight:bold; letter-spacing:1px;
+}
+.map-status{ color:var(--accent); }
+.map-svg-wrap{
+  width:100%; max-height:70vh; overflow-y:auto; overflow-x:hidden;
+  display:flex; justify-content:center;
+}
+.map-svg-v2{
+  width:100%; max-width:760px;
+  display:block;
+}
+.map-node-g{ transition:transform 0.15s ease; }
+.map-node-g[onclick]:hover{ transform:scale(1.06); transform-origin:center; transform-box:fill-box; }
+
+/* legacy fallback styles (unused but kept for compat) */
 .map-gold{
   text-align:center; padding:8px; margin-bottom:10px;
   background:linear-gradient(90deg, rgba(255,210,63,0.10), rgba(255,210,63,0.20), rgba(255,210,63,0.10));
@@ -5344,7 +5379,107 @@ function applyShopPurchase(o){
 /* ===== 23-ui-map.js ===== */
 
 // depends on: 14-ui-modal, 19-data-map, 20-state-map
-// 분기 미니맵 UI — modal 형태, 9 layers + boss, SVG 연결선 (M4)
+// 분기 미니맵 UI — 양피지 두루마리 + SVG 다각형 노드 + Bezier 연결선 (M4 리오나 폴리시)
+//
+// 리오나 디자인 노트:
+//   - 단일 SVG 안에 배경 / 연결선 / 노드 / 텍스트 모두 통합 (일관성)
+//   - 노드 = 육각형 다각형 (룬 카드 인상) + 타입별 SVG 아이콘 + 그라디언트 fill
+//   - 연결선 = cubic Bezier curve, 상태별 dash/glow/색상
+//   - 배경 = noise filter + radial fog + 격자 룬 패턴
+//   - 의도적 비대칭: deterministic random offset (graph seed 기반)
+
+const MAP_VB_W = 760;     // viewBox width
+const MAP_LAYER_H = 90;   // 각 layer 세로 간격
+const MAP_NODE_R = 32;    // 노드 반경 (육각형 외접원)
+const MAP_BOSS_R = 48;    // 보스 노드 반경
+
+// graph deterministic random — node 위치 약간 흔들기 (seed = nodeId hash)
+function _hashSeed(s){
+  let h = 0;
+  for (let i=0; i<s.length; i++) h = ((h<<5) - h + s.charCodeAt(i)) | 0;
+  return h;
+}
+function _det(seed){
+  // mulberry32
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function _nodeXY(nodeId){
+  const node = G.map.graph.nodes[nodeId];
+  if (!node) return null;
+  const isBoss = node.type === 'boss';
+  const layerIndex = isBoss ? ACT_LAYERS : (node.layer - 1);
+  const yBase = (layerIndex + 0.5) * MAP_LAYER_H + 30;
+  // 같은 layer 내 가로 위치
+  let count, idx;
+  if (isBoss){
+    count = 1; idx = 0;
+  } else {
+    const layerArr = G.map.graph.layers[node.layer - 1];
+    count = layerArr.length;
+    idx = layerArr.indexOf(nodeId);
+  }
+  const xBase = ((idx + 0.5) / count) * MAP_VB_W;
+  // deterministic 작은 offset (의도적 비대칭)
+  const r = _det(_hashSeed(nodeId))();
+  const r2 = _det(_hashSeed(nodeId + 'y'))();
+  const dx = (r - 0.5) * 22;
+  const dy = (r2 - 0.5) * 14;
+  return { x: xBase + dx, y: yBase + dy, r: isBoss ? MAP_BOSS_R : MAP_NODE_R };
+}
+
+// 육각형 path (cx,cy,r) — 위쪽 꼭짓점 시작
+function _hexPath(cx, cy, r){
+  const pts = [];
+  for (let i = 0; i < 6; i++){
+    const a = -Math.PI/2 + i * Math.PI/3;
+    pts.push(`${(cx + r*Math.cos(a)).toFixed(1)},${(cy + r*Math.sin(a)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+// 노드 종류별 SVG 아이콘 (symbol id로 참조 — 32x32 viewBox)
+const _ICON_DEFS = `
+  <symbol id="icon-battle" viewBox="0 0 32 32">
+    <!-- 두 검 X자 교차: blade + 자루 + 가드 명확히 -->
+    <line x1="9" y1="9" x2="25" y2="25" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    <line x1="25" y1="9" x2="9" y2="25" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    <!-- 좌상 자루 -->
+    <line x1="5" y1="5" x2="9" y2="9" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+    <!-- 우상 자루 -->
+    <line x1="27" y1="5" x2="23" y2="9" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+    <!-- 좌상 가드 (수직 line) -->
+    <line x1="6" y1="9" x2="9" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <!-- 우상 가드 -->
+    <line x1="26" y1="9" x2="23" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <!-- 중심 보석 -->
+    <circle cx="17" cy="17" r="1.6" fill="currentColor"/>
+  </symbol>
+  <symbol id="icon-elite" viewBox="0 0 32 32">
+    <polygon points="16,3 19,12 28,12 21,18 24,28 16,22 8,28 11,18 4,12 13,12" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="icon-event" viewBox="0 0 32 32">
+    <text x="16" y="24" text-anchor="middle" font-size="22" font-weight="bold" fill="currentColor">?</text>
+  </symbol>
+  <symbol id="icon-shop" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    <text x="16" y="22" text-anchor="middle" font-size="16" font-weight="bold" fill="currentColor">$</text>
+  </symbol>
+  <symbol id="icon-heal" viewBox="0 0 32 32">
+    <path d="M16 27 C 6 19, 4 11, 9 8 C 13 5, 16 9, 16 12 C 16 9, 19 5, 23 8 C 28 11, 26 19, 16 27 Z" fill="currentColor"/>
+  </symbol>
+  <symbol id="icon-boss" viewBox="0 0 32 32">
+    <path d="M5 22 L7 9 L13 14 L16 6 L19 14 L25 9 L27 22 Z" fill="currentColor" stroke="currentColor" stroke-width="0.8" stroke-linejoin="round"/>
+    <rect x="5" y="22" width="22" height="3" fill="currentColor"/>
+    <circle cx="11" cy="11" r="1.4" fill="#fff"/>
+    <circle cx="21" cy="11" r="1.4" fill="#fff"/>
+  </symbol>
+`;
 
 function showMapModal(){
   if (!G.map || !G.map.graph){
@@ -5352,87 +5487,203 @@ function showMapModal(){
     return;
   }
   const g = G.map.graph;
-  const goldHtml = `<div class="map-gold">💰 ${G.gold||0} 골드</div>`;
-  const actLabel = `Act ${g.actNum} — ${(g.actNum-1)*10+1}~${g.actNum*10}층`;
+  const totalLayers = ACT_LAYERS + 1; // 일반 + 보스
+  const vbH = totalLayers * MAP_LAYER_H + 60;
+  const actLabel = `ACT ${g.actNum}`;
+  const stageLabel = `${(g.actNum-1)*10+1} ~ ${g.actNum*10}층`;
 
-  // 9 layers + boss layer
-  const layersHtml = [];
-  for (let layer = 1; layer <= ACT_LAYERS; layer++){
-    const layerNodes = g.layers[layer - 1];
-    const nodesHtml = layerNodes.map(id => _renderNode(id)).join('');
-    layersHtml.push(`<div class="map-layer" data-layer="${layer}">${nodesHtml}</div>`);
-  }
-  // Boss layer
-  layersHtml.push(`<div class="map-layer map-boss-layer" data-layer="boss">${_renderNode(g.bossId)}</div>`);
+  // 연결선
+  const linesSvg = _renderConnections();
+  // 노드들
+  const nodesSvg = Object.keys(g.nodes).map(id => _renderNodeSvg(id)).join('');
+  // act/stage 라벨 (양피지 두루마리)
+  const headerSvg = `
+    <g class="map-header">
+      <rect x="${MAP_VB_W/2 - 130}" y="6" width="260" height="42" rx="3" fill="url(#scrollGrad)" stroke="#a87c3a" stroke-width="1.2"/>
+      <rect x="${MAP_VB_W/2 - 142}" y="14" width="14" height="26" fill="url(#scrollEnd)" stroke="#7a5618" stroke-width="0.8"/>
+      <rect x="${MAP_VB_W/2 + 128}" y="14" width="14" height="26" fill="url(#scrollEnd)" stroke="#7a5618" stroke-width="0.8"/>
+      <text x="${MAP_VB_W/2}" y="26" text-anchor="middle" font-size="14" font-weight="bold" letter-spacing="6" fill="#3a2a18" font-family="Courier New,monospace">${actLabel}</text>
+      <text x="${MAP_VB_W/2}" y="42" text-anchor="middle" font-size="10" letter-spacing="3" fill="#5a3a18" font-family="Courier New,monospace">${stageLabel}</text>
+    </g>
+  `;
 
   showModal(`
-    <h2>🗺 ${actLabel}</h2>
-    <div class="sub">노드를 선택하여 진행하세요. 한 번 선택한 갈래는 되돌릴 수 없습니다.</div>
-    ${goldHtml}
-    <div class="map-container">
-      <svg class="map-svg" id="map-svg"></svg>
-      <div class="map-grid" id="map-grid">
-        ${layersHtml.join('')}
+    <div class="map-frame">
+      <div class="map-info">
+        <span class="map-gold-pill">💰 ${G.gold||0}</span>
+        <span class="map-status">${_statusHint()}</span>
+      </div>
+      <div class="map-svg-wrap">
+        <svg class="map-svg-v2" viewBox="0 0 ${MAP_VB_W} ${vbH}" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            ${_ICON_DEFS}
+            <!-- 배경 텍스처 noise -->
+            <filter id="bgNoise" x="0" y="0" width="100%" height="100%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="${g.actNum}" stitchTiles="stitch"/>
+              <feColorMatrix values="0 0 0 0 0.18  0 0 0 0 0.13  0 0 0 0 0.07  0 0 0 0.45 0"/>
+              <feComposite in2="SourceGraphic" operator="in"/>
+            </filter>
+            <!-- 글로우 -->
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glowStrong" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="7" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <!-- 배경 그라디언트 -->
+            <radialGradient id="bgFog" cx="50%" cy="40%" r="80%">
+              <stop offset="0%" stop-color="#3a2a1a" stop-opacity="0.95"/>
+              <stop offset="60%" stop-color="#1c1208" stop-opacity="0.98"/>
+              <stop offset="100%" stop-color="#0a0604" stop-opacity="1"/>
+            </radialGradient>
+            <!-- 룬 격자 패턴 -->
+            <pattern id="runeGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M0 20 H40 M20 0 V40" stroke="#a87c3a" stroke-width="0.4" stroke-opacity="0.18" fill="none"/>
+              <circle cx="20" cy="20" r="0.8" fill="#a87c3a" fill-opacity="0.25"/>
+            </pattern>
+            <!-- 두루마리 -->
+            <linearGradient id="scrollGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#e8d4a0"/>
+              <stop offset="50%" stop-color="#d4a04a"/>
+              <stop offset="100%" stop-color="#8a5e22"/>
+            </linearGradient>
+            <linearGradient id="scrollEnd" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#7a5618"/>
+              <stop offset="100%" stop-color="#a87c3a"/>
+            </linearGradient>
+            <!-- 노드 그라디언트 -->
+            <radialGradient id="nodeBg" cx="50%" cy="35%">
+              <stop offset="0%" stop-color="#4a3520"/>
+              <stop offset="100%" stop-color="#180e06"/>
+            </radialGradient>
+            <radialGradient id="nodeBgActive" cx="50%" cy="35%">
+              <stop offset="0%" stop-color="#7a4e22"/>
+              <stop offset="100%" stop-color="#2a1808"/>
+            </radialGradient>
+            <radialGradient id="nodeBgVisited" cx="50%" cy="35%">
+              <stop offset="0%" stop-color="#2a3520"/>
+              <stop offset="100%" stop-color="#0a1408"/>
+            </radialGradient>
+          </defs>
+          <!-- 배경 -->
+          <rect width="100%" height="100%" fill="url(#bgFog)"/>
+          <rect width="100%" height="100%" fill="url(#runeGrid)"/>
+          <rect width="100%" height="100%" filter="url(#bgNoise)"/>
+          <!-- 헤더 두루마리 -->
+          ${headerSvg}
+          <!-- 연결선 -->
+          <g class="map-connections">${linesSvg}</g>
+          <!-- 노드 -->
+          <g class="map-nodes">${nodesSvg}</g>
+        </svg>
       </div>
     </div>
   `);
-
-  // SVG 라인 그리기 (DOM 렌더링 후)
-  setTimeout(_drawMapLines, 50);
 }
 
-function _renderNode(nodeId){
+function _statusHint(){
+  if (G.map.awaitingNodeChoice) return '◇ 다음 노드를 선택하세요';
+  return '◆ 진행 중';
+}
+
+function _renderConnections(){
+  const g = G.map.graph;
+  const out = [];
+  for (const id of Object.keys(g.nodes)){
+    const node = g.nodes[id];
+    const fp = _nodeXY(id); if (!fp) continue;
+    for (const eid of node.edges){
+      const tn = g.nodes[eid]; if (!tn) continue;
+      const tp = _nodeXY(eid); if (!tp) continue;
+      // Bezier curve (위→아래)
+      const fy = fp.y + fp.r * 0.85;
+      const ty = tp.y - tp.r * 0.85;
+      const midY = (fy + ty) / 2;
+      const path = `M${fp.x.toFixed(1)} ${fy.toFixed(1)} C ${fp.x.toFixed(1)} ${midY.toFixed(1)}, ${tp.x.toFixed(1)} ${midY.toFixed(1)}, ${tp.x.toFixed(1)} ${ty.toFixed(1)}`;
+      const fromVisited = node.visited;
+      const toAccessible = tn.accessible;
+      const both = node.visited && tn.visited;
+      let stroke, w, dash, opacity, filter = '';
+      if (both){
+        stroke = '#5edb7a'; w = 2.4; dash = ''; opacity = 0.9; filter = 'url(#glow)';
+      } else if (fromVisited && toAccessible){
+        stroke = '#ffae5c'; w = 2.2; dash = '6 4'; opacity = 0.95; filter = 'url(#glow)';
+      } else if (toAccessible){
+        stroke = '#ffd23f'; w = 1.8; dash = '4 5'; opacity = 0.7;
+      } else {
+        stroke = '#5a4a30'; w = 1.2; dash = '2 6'; opacity = 0.45;
+      }
+      out.push(`<path d="${path}" stroke="${stroke}" stroke-width="${w}" stroke-dasharray="${dash}" stroke-linecap="round" fill="none" opacity="${opacity}"${filter ? ' filter="' + filter + '"' : ''}/>`);
+    }
+  }
+  return out.join('');
+}
+
+function _renderNodeSvg(nodeId){
   const node = G.map.graph.nodes[nodeId];
   if (!node) return '';
   const t = NODE_TYPES[node.type];
+  const p = _nodeXY(nodeId);
+  if (!p) return '';
   const isCurrent = G.map.currentNodeId === nodeId;
-  let cls = 'map-node';
-  if (node.visited) cls += ' visited';
-  if (isCurrent) cls += ' current';
-  if (node.accessible && !node.visited) cls += ' accessible';
-  if (!node.accessible && !node.visited) cls += ' locked';
-  const click = (node.accessible && !node.visited) ? `onclick="pickMapNode('${nodeId}')"` : '';
-  return `
-    <div class="${cls}" data-node-id="${nodeId}" style="--node-color:${t.color}" ${click}>
-      <div class="map-node-icon">${t.icon}</div>
-      <div class="map-node-label">${t.label}</div>
-    </div>`;
-}
+  const isVisited = node.visited;
+  const isAccessible = node.accessible && !node.visited;
+  const isLocked = !node.accessible && !node.visited;
+  const isBoss = node.type === 'boss';
 
-function _drawMapLines(){
-  const svg = document.getElementById('map-svg');
-  const grid = document.getElementById('map-grid');
-  if (!svg || !grid || !G.map || !G.map.graph) return;
-  const gridRect = grid.getBoundingClientRect();
-  svg.setAttribute('width', gridRect.width);
-  svg.setAttribute('height', gridRect.height);
-  svg.innerHTML = '';
-  const g = G.map.graph;
-  for (const id of Object.keys(g.nodes)){
-    const node = g.nodes[id];
-    const fromEl = grid.querySelector(`[data-node-id="${id}"]`);
-    if (!fromEl) continue;
-    const fromRect = fromEl.getBoundingClientRect();
-    const fx = fromRect.left + fromRect.width / 2 - gridRect.left;
-    const fy = fromRect.top + fromRect.height - gridRect.top;
-    for (const eid of node.edges){
-      const toEl = grid.querySelector(`[data-node-id="${eid}"]`);
-      if (!toEl) continue;
-      const toRect = toEl.getBoundingClientRect();
-      const tx = toRect.left + toRect.width / 2 - gridRect.left;
-      const ty = toRect.top - gridRect.top;
-      const isVisited = node.visited && g.nodes[eid] && g.nodes[eid].visited;
-      const stroke = isVisited ? '#5edb7a' : (g.nodes[eid] && g.nodes[eid].accessible ? '#ffae5c' : '#5a4a30');
-      const w = isVisited ? 2.5 : 1.5;
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', fx); line.setAttribute('y1', fy);
-      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
-      line.setAttribute('stroke', stroke);
-      line.setAttribute('stroke-width', w);
-      line.setAttribute('stroke-linecap', 'round');
-      svg.appendChild(line);
-    }
+  const hex = _hexPath(p.x, p.y, p.r);
+  const innerHex = _hexPath(p.x, p.y, p.r * 0.78);
+  const color = t.color;
+  let bgFill = 'url(#nodeBg)';
+  let strokeColor = '#5a4a30';
+  let strokeW = 1.6;
+  let opacity = 1;
+  let filter = '';
+  let extra = '';
+
+  if (isAccessible){
+    bgFill = 'url(#nodeBgActive)';
+    strokeColor = color;
+    strokeW = 2.4;
+    filter = 'url(#glow)';
+    // 호흡하는 외부 후광
+    extra += `<polygon points="${_hexPath(p.x, p.y, p.r*1.3)}" fill="none" stroke="${color}" stroke-width="1.2" opacity="0.4">
+      <animate attributeName="opacity" values="0.15;0.5;0.15" dur="1.8s" repeatCount="indefinite"/>
+      <animateTransform attributeName="transform" attributeType="XML" type="scale" values="0.94;1.06;0.94" additive="sum" dur="1.8s" repeatCount="indefinite"/>
+    </polygon>`;
+  } else if (isCurrent){
+    bgFill = 'url(#nodeBgActive)';
+    strokeColor = '#fff';
+    strokeW = 3;
+    filter = 'url(#glowStrong)';
+  } else if (isVisited){
+    bgFill = 'url(#nodeBgVisited)';
+    strokeColor = '#5edb7a';
+    strokeW = 1.8;
+    opacity = 0.7;
+  } else if (isLocked){
+    opacity = 0.35;
+    strokeColor = '#3a2a1a';
   }
+
+  const click = isAccessible ? `onclick="pickMapNode('${nodeId}')" style="cursor:pointer"` : '';
+  // 라벨
+  const label = isBoss ? 'BOSS' : t.label;
+  const labelY = p.y + p.r + 13;
+
+  return `
+    <g class="map-node-g" data-node-id="${nodeId}" opacity="${opacity}" ${click}${filter ? ` filter="${filter}"` : ''}>
+      ${extra}
+      <polygon points="${hex}" fill="${bgFill}" stroke="${strokeColor}" stroke-width="${strokeW}" stroke-linejoin="round"/>
+      <polygon points="${innerHex}" fill="none" stroke="${strokeColor}" stroke-width="0.6" stroke-opacity="0.4"/>
+      <g transform="translate(${p.x - p.r*0.5}, ${p.y - p.r*0.5})" style="color:${color}">
+        <use xlink:href="#icon-${node.type}" width="${p.r}" height="${p.r}"/>
+      </g>
+      <text x="${p.x}" y="${labelY}" text-anchor="middle" font-size="${isBoss ? 11 : 9}" font-weight="${isBoss?'bold':'normal'}" letter-spacing="2" fill="${isAccessible || isCurrent ? color : '#a08868'}" font-family="Courier New,monospace">${label}</text>
+    </g>
+  `;
 }
 
 window.pickMapNode = function(nodeId){
@@ -5440,7 +5691,6 @@ window.pickMapNode = function(nodeId){
   if (!node) return;
   SoundFx.select();
   hideModal();
-  // 노드 종류에 따라 처리
   processCurrentNode();
 };
 
