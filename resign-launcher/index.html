@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0,minimum-scale=1.0">
+<title>퇴근 발사기</title>
+<meta name="theme-color" content="#1A1A2E">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0D0D1A;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#wrap{position:relative;width:100%;height:100%;max-width:480px;margin:0 auto;overflow:hidden;background:#0D0D1A}
+canvas#c{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+.overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;pointer-events:none}
+.overlay>*{pointer-events:auto}
+.hidden{display:none!important}
+#landing{z-index:10}
+#landing h1{font-size:clamp(36px,10vw,52px);font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,107,53,.6),0 0 60px rgba(255,107,53,.3),0 4px 8px rgba(0,0,0,.5);margin-bottom:8px;letter-spacing:-2px}
+#landing .sub{color:rgba(255,255,255,.55);font-size:15px;margin-bottom:32px;letter-spacing:1px}
+#nameInput,#nameInputC{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:14px;padding:12px 16px;color:#fff;font-size:16px;text-align:center;width:220px;margin-bottom:16px;outline:none;transition:border-color .2s}
+#nameInput:focus,#nameInputC:focus{border-color:#FF6B35}
+#nameInput::placeholder,#nameInputC::placeholder{color:rgba(255,255,255,.25)}
+.cta{background:#FF6B35;color:#fff;border:none;padding:18px 40px;border-radius:18px;font-size:19px;font-weight:800;cursor:pointer;box-shadow:0 6px 24px rgba(255,107,53,.45);transition:transform .12s,box-shadow .12s;animation:ctaPulse 2.2s ease-in-out infinite;letter-spacing:-.3px}
+.cta:active{transform:scale(.94)!important;box-shadow:0 2px 12px rgba(255,107,53,.3)}
+@keyframes ctaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04);box-shadow:0 8px 32px rgba(255,107,53,.55)}}
+#micErr{color:#FF6B35;font-size:13px;margin-top:14px;text-align:center;max-width:260px;line-height:1.5;display:none}
+#cdScreen{z-index:20;font-size:min(140px,30vw);font-weight:900;color:#fff;text-shadow:0 0 50px rgba(255,255,255,.4)}
+#hud{position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none}
+#volBar{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:22px;height:min(220px,35vh);border-radius:11px;border:2px solid rgba(255,255,255,.25);overflow:hidden;background:rgba(0,0,0,.35);backdrop-filter:blur(4px)}
+#volFill{position:absolute;bottom:0;left:0;width:100%;background:linear-gradient(to top,#4CAF50 0%,#FFEB3B 40%,#F44336 70%,#9C27B0 100%);border-radius:9px;transition:height 60ms linear}
+#volGlow{position:absolute;bottom:0;left:-4px;width:30px;border-radius:15px;background:radial-gradient(ellipse,rgba(156,39,176,.6),transparent);transition:height 60ms;opacity:0}
+#volNum{position:absolute;left:10px;top:calc(50% - 128px);color:#fff;font-size:11px;font-family:monospace;font-weight:700;text-shadow:0 1px 4px #000;width:22px;text-align:center}
+#distNum{position:absolute;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);color:#fff;font-family:monospace;font-size:clamp(24px,7vw,34px);font-weight:900;text-shadow:0 2px 12px rgba(0,0,0,.7),0 0 20px rgba(255,215,0,.3);letter-spacing:-1px}
+#gBar{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 44px);left:14px;right:14px;height:26px;background:rgba(0,0,0,.4);border-radius:13px;overflow:visible;display:none;backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.1)}
+#gBarMe{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#FF6B35,#FFD700);border-radius:13px;min-width:10px;transition:width 80ms;box-shadow:0 0 10px rgba(255,107,53,.4)}
+#gBarThem{position:absolute;right:0;top:0;height:100%;background:rgba(255,255,255,.2);border-radius:13px;min-width:10px}
+#gLabels{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 72px);left:14px;right:14px;display:flex;justify-content:space-between;color:#fff;font-size:11px;font-weight:700;text-shadow:0 1px 3px #000}
+#floatText{position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);color:#FFD700;font-size:clamp(24px,7vw,36px);font-weight:900;text-shadow:0 0 24px rgba(255,215,0,.7),0 4px 8px rgba(0,0,0,.5);z-index:15;opacity:0;pointer-events:none;white-space:nowrap;transition:opacity .3s}
+#challenge{z-index:25;background:rgba(13,13,26,.92);backdrop-filter:blur(8px);padding:24px;text-align:center}
+#challenge h2{color:#FFD700;font-size:26px;font-weight:900;margin-bottom:20px;text-shadow:0 0 20px rgba(255,215,0,.3)}
+#challenge .rec{color:#fff;font-size:17px;margin-bottom:8px;line-height:1.6}
+#challenge .taunt{color:rgba(255,255,255,.5);font-size:15px;margin-bottom:28px}
+#challenge .ghost-preview{width:60px;height:80px;margin:0 auto 20px;opacity:.4}
+#result{z-index:30;background:rgba(13,13,26,.94);backdrop-filter:blur(10px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 0}
+#result .card{width:calc(100% - 32px);max-width:400px;margin:0 auto;background:linear-gradient(145deg,#1A1A2E 0%,#16213E 100%);border-radius:28px;padding:32px 24px;text-align:center;border:1px solid rgba(255,255,255,.08);box-shadow:0 24px 80px rgba(0,0,0,.6)}
+#result .card h2{color:rgba(255,215,0,.8);font-size:14px;letter-spacing:3px;margin-bottom:20px;font-weight:600;text-transform:uppercase}
+#result .dist{font-family:monospace;font-size:clamp(44px,12vw,64px);font-weight:900;color:#fff;margin:4px 0 12px;text-shadow:0 0 30px rgba(255,215,0,.35);letter-spacing:-2px}
+#result .badge{display:inline-block;background:linear-gradient(135deg,#FF6B35,#FFD700);color:#1A1A2E;padding:10px 24px;border-radius:24px;font-weight:900;font-size:18px;margin:4px 0 6px;box-shadow:0 4px 16px rgba(255,107,53,.3)}
+#result .sub{color:rgba(255,255,255,.6);font-size:14px;margin-bottom:16px;font-style:italic}
+#result .vs{color:#FFD700;font-size:22px;font-weight:900;margin:16px 0;text-shadow:0 0 15px rgba(255,215,0,.4);line-height:1.5}
+#result .stats{text-align:left;background:rgba(255,255,255,.04);border-radius:16px;padding:16px 18px;margin:16px 0;border:1px solid rgba(255,255,255,.05)}
+#result .stat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;color:rgba(255,255,255,.75);font-size:13px;border-bottom:1px solid rgba(255,255,255,.04)}
+#result .stat:last-child{border:none}
+#result .stat b{color:#fff;font-family:monospace;font-weight:800}
+#waveC{width:100%;height:60px;border-radius:10px;margin:12px 0;background:rgba(255,255,255,.02)}
+#result .ts{color:rgba(255,255,255,.35);font-size:12px;margin:10px 0 4px}
+.btns{display:flex;gap:10px;margin-top:18px;justify-content:center;flex-wrap:wrap}
+.btns button{padding:13px 22px;border-radius:14px;border:none;font-size:14px;font-weight:700;cursor:pointer;transition:transform .1s,opacity .1s;letter-spacing:-.2px}
+.btns button:active{transform:scale(.94)}
+.btn-share{background:#25D366;color:#fff}
+.btn-copy{background:rgba(255,255,255,.12);color:#fff}
+.btn-retry{background:#FF6B35;color:#fff}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(37,211,102,.95);color:#fff;padding:10px 28px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:opacity .25s;z-index:999;pointer-events:none;backdrop-filter:blur(4px)}
+@media(min-width:481px){body{background:#0a0a12}#wrap{box-shadow:0 0 60px rgba(0,0,0,.5)}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c"></canvas>
+
+<div id="landing" class="overlay">
+  <h1>퇴근 발사기</h1>
+  <div class="sub">소리 질러서 탈출하라</div>
+  <input id="nameInput" type="text" placeholder="이름 (최대 10자)" maxlength="10">
+  <button class="cta" id="startBtn">🎤 소리 질러서 퇴근하기</button>
+  <div id="micErr"></div>
+</div>
+
+<div id="cdScreen" class="overlay hidden"></div>
+
+<div id="hud" class="hidden">
+  <div id="volBar"><div id="volFill"></div><div id="volGlow"></div></div>
+  <div id="volNum">0</div>
+  <div id="distNum">0m</div>
+  <div id="gBar"><div id="gBarMe"></div><div id="gBarThem"></div></div>
+  <div id="gLabels" class="hidden"><span id="glMe">나 0m</span><span id="glTh">0m</span></div>
+</div>
+
+<div id="floatText"></div>
+
+<div id="challenge" class="overlay hidden">
+  <h2>⚔️ 대결 신청</h2>
+  <div class="rec" id="chRec"></div>
+  <div class="taunt" id="chTaunt">이 기록을 이길 수 있겠어?</div>
+  <input id="nameInputC" type="text" placeholder="이름 (최대 10자)" maxlength="10">
+  <button class="cta" id="chBtn">🔥 도전하기</button>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="card">
+    <h2>퇴근 발사기</h2>
+    <div class="dist" id="rDist">0m</div>
+    <div class="badge" id="rTitle"></div>
+    <div class="sub" id="rSub"></div>
+    <div class="vs hidden" id="rVs"></div>
+    <div class="stats" id="rStats"></div>
+    <canvas id="waveC"></canvas>
+    <div class="ts" id="rTs"></div>
+    <div class="btns">
+      <button class="btn-copy" id="bCopy">🔗 링크 복사</button>
+      <button class="btn-share" id="bShare">📱 공유</button>
+      <button class="btn-retry" id="bRetry">🔄 다시 소리지르기</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast">복사 완료!</div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════
+// Canvas & Sizing
+// ═══════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+let W, H, DPR;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════
+// Audio Engine
+// ═══════════════════════════════════════
+let actx = null;
+function initAudio() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); }
+
+function tone(freq, dur, type = 'sine', vol = 0.12, endFreq = null) {
+  initAudio();
+  const t = actx.currentTime;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (endFreq) osc.frequency.linearRampToValueAtTime(endFreq, t + dur);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.connect(gain).connect(actx.destination);
+  osc.start(t);
+  osc.stop(t + dur);
+}
+
+function noise(dur, vol = 0.08) {
+  initAudio();
+  const t = actx.currentTime;
+  const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  const src = actx.createBufferSource();
+  const gain = actx.createGain();
+  src.buffer = buf;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(gain).connect(actx.destination);
+  src.start(t);
+  src.stop(t + dur);
+}
+
+const SFX = {
+  countdown() { tone(440, 0.1, 'square', 0.08); },
+  go() { tone(880, 0.15, 'square', 0.1); },
+  launch() { tone(100, 0.35, 'sawtooth', 0.1, 900); noise(0.2, 0.06); },
+  hit() { tone(150, 0.06, 'square', 0.12); },
+  destroy() { noise(0.2, 0.1); tone(1200, 0.12, 'sine', 0.06); tone(800, 0.08, 'triangle', 0.05); },
+  boom() { noise(0.5, 0.15); tone(60, 0.4, 'sine', 0.12); },
+  land() { tone(80, 0.25, 'sine', 0.12); },
+  win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.18, 'sine', 0.1), i * 110)); },
+  overtake() { tone(660, 0.1, 'square', 0.08); tone(880, 0.15, 'square', 0.08); }
+};
+
+// ═══════════════════════════════════════
+// Ghost Data (URL parsing)
+// ═══════════════════════════════════════
+let ghost = null;
+try {
+  const p = new URLSearchParams(location.search);
+  if (p.has('g')) ghost = JSON.parse(decodeURIComponent(escape(atob(p.get('g')))));
+} catch (e) { ghost = null; }
+
+// ═══════════════════════════════════════
+// Game Constants & State
+// ═══════════════════════════════════════
+const PH = { LAND: 0, CD: 1, PLAY: 2, FALL: 3, RESULT: 4, CHALLENGE: 5 };
+let phase = ghost ? PH.CHALLENGE : PH.LAND;
+let name = '';
+
+// Mic
+let micStream = null, analyser = null, freqData = null;
+
+// Game vars
+let vol = 0, normVol = 0, thrust = 0, vel = 0, dist = 0, maxVol = 0;
+let silentT = 0, gameT = 0;
+const MAX_TIME = 10;
+let obs = [], parts = [], floats = [];
+let obsTimer = 0, destroyCount = 0, destroyTexts = [];
+let volHist = [], hitIdxs = [];
+let shakeAmt = 0, shakeX = 0, shakeY = 0;
+let flashA = 0, flashCol = '#FF1744';
+let sonicActive = false, sonicT = 0;
+let trails = [];
+
+// Ghost play
+let gDist = 0, gIdx = 0, gDone = false, gDoneShown = false;
+let overtook = false, overtookShown = false;
+
+// Countdown
+let cdVal = 3, cdT = 0;
+// Fall
+let fallT = 0;
+// Landing idle
+let idleT = 0;
+
+// Float text
+let floatTextA = 0, floatTextTimer = 0;
+const $float = document.getElementById('floatText');
+
+// Pre-generated stars
+const stars = Array.from({ length: 150 }, () => ({
+  x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * 2, p: Math.random() * Math.PI * 2
+}));
+
+// Pre-generated buildings
+const buildings = Array.from({ length: 20 }, (_, i) => ({
+  x: (i / 20) + (Math.random() - 0.5) * 0.05,
+  w: 28 + Math.random() * 45,
+  h: 70 + Math.random() * 180,
+  dark: Math.random() > 0.5,
+  winOn: Array.from({ length: 100 }, () => Math.random() > 0.3)
+}));
+
+// Obstacle texts
+const OBS_TEXTS = [
+  "이거 하나만", "잠깐 통화 돼?", "이거 오늘 중으로 가능?",
+  "내일 아침 회의 10분만", "주말에 잠깐만...", "긴급 회의 소환",
+  "내일까지 보고서", "이거 어디까지 했어?", "슬랙 확인 좀",
+  "메일 보셨죠?", "잠깐 얘기 좀", "이거 수정 부탁",
+  "오늘 야근 가능?", "점심때 미팅 잡자", "이거 ASAP",
+  "컨펌 부탁드려요", "일정 조율 좀", "리뷰 부탁합니다",
+  "이슈 터졌어요", "클라이언트 전화 왔어"
+];
+
+// Titles
+const TITLES = [
+  { d: 0, t: "엘리베이터에서 잡힘", s: '"부장님: 이거 하나만"' },
+  { d: 50, t: "로비 탈출 성공", s: '"경비 아저씨가 응원해줌"' },
+  { d: 100, t: "회사 앞 편의점 도착", s: '"삼각김밥 획득 🍙"' },
+  { d: 200, t: "지하철 착석 성공", s: '"퇴근 모드 ON"' },
+  { d: 400, t: "한강 도착", s: '"치맥 각"' },
+  { d: 600, t: "제주도 도착", s: '"사직서 자동 생성됨"' },
+  { d: 800, t: "대기권 돌파", s: '"연차 무한 승인"' },
+  { d: 1000, t: "슬랙 알림 영구 차단", s: '"인류를 초월함"' }
+];
+
+function getTitle(d) {
+  let r = TITLES[0];
+  for (const t of TITLES) if (d >= t.d) r = t;
+  return r;
+}
+
+// ═══════════════════════════════════════
+// Microphone
+// ═══════════════════════════════════════
+async function setupMic() {
+  initAudio();
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const src = actx.createMediaStreamSource(micStream);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.4;
+    src.connect(analyser);
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    return true;
+  } catch (e) { return false; }
+}
+
+function readVol() {
+  if (!analyser) return 0;
+  analyser.getByteFrequencyData(freqData);
+  let sum = 0;
+  for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+  return sum / freqData.length;
+}
+
+function stopMic() {
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; analyser = null; }
+}
+
+// ═══════════════════════════════════════
+// UI Elements
+// ═══════════════════════════════════════
+const $ = id => document.getElementById(id);
+const $landing = $('landing'), $startBtn = $('startBtn'), $micErr = $('micErr');
+const $cd = $('cdScreen'), $hud = $('hud');
+const $volFill = $('volFill'), $volGlow = $('volGlow'), $volNum = $('volNum');
+const $distNum = $('distNum');
+const $gBar = $('gBar'), $gBarMe = $('gBarMe'), $gBarThem = $('gBarThem');
+const $gLabels = $('gLabels'), $glMe = $('glMe'), $glTh = $('glTh');
+const $challenge = $('challenge'), $chRec = $('chRec'), $chTaunt = $('chTaunt'), $chBtn = $('chBtn');
+const $result = $('result'), $rDist = $('rDist'), $rTitle = $('rTitle'), $rSub = $('rSub');
+const $rVs = $('rVs'), $rStats = $('rStats'), $rTs = $('rTs');
+const $bCopy = $('bCopy'), $bShare = $('bShare'), $bRetry = $('bRetry');
+const $toast = $('toast');
+const $nameI = $('nameInput'), $nameIC = $('nameInputC');
+
+// ═══════════════════════════════════════
+// Challenge Screen Setup
+// ═══════════════════════════════════════
+if (ghost) {
+  $landing.classList.add('hidden');
+  $challenge.classList.remove('hidden');
+  const gt = getTitle(ghost.d);
+  $chRec.innerHTML = `<b>${ghost.n || '???'}</b>님의 기록<br><span style="font-size:32px;font-weight:900;color:#FFD700">${Math.round(ghost.d)}m</span><br><span style="color:rgba(255,255,255,.5)">${gt.t}</span>`;
+}
+
+// ═══════════════════════════════════════
+// Event Handlers
+// ═══════════════════════════════════════
+$startBtn.onclick = async () => {
+  name = ($nameI.value || '나').substring(0, 10);
+  const ok = await setupMic();
+  if (ok) { $landing.classList.add('hidden'); beginCountdown(); }
+  else { $micErr.style.display = 'block'; $micErr.textContent = '마이크 없이는 퇴근 못합니다 (현실과 동일)'; }
+};
+
+$chBtn.onclick = async () => {
+  name = ($nameIC.value || '나').substring(0, 10);
+  const ok = await setupMic();
+  if (ok) { $challenge.classList.add('hidden'); beginCountdown(); }
+  else { $chTaunt.textContent = '마이크 없이는 퇴근 못합니다 (현실과 동일)'; }
+};
+
+$bRetry.onclick = () => {
+  $result.classList.add('hidden');
+  $hud.classList.add('hidden');
+  if (ghost) { $challenge.classList.remove('hidden'); phase = PH.CHALLENGE; }
+  else { $landing.classList.remove('hidden'); phase = PH.LAND; }
+};
+
+$bCopy.onclick = () => {
+  navigator.clipboard.writeText(shareText()).then(() => showToast()).catch(() => {});
+};
+
+$bShare.onclick = () => {
+  const txt = shareText();
+  if (navigator.share) navigator.share({ title: '퇴근 발사기', text: txt }).catch(() => {});
+  else navigator.clipboard.writeText(txt).then(() => showToast()).catch(() => {});
+};
+
+function showToast() {
+  $toast.style.opacity = '1';
+  setTimeout(() => $toast.style.opacity = '0', 1600);
+}
+
+// ═══════════════════════════════════════
+// Phase Transitions
+// ═══════════════════════════════════════
+function beginCountdown() {
+  phase = PH.CD;
+  cdVal = 3; cdT = 0;
+  $cd.classList.remove('hidden');
+  $cd.textContent = '3';
+  $cd.style.color = '#fff';
+  SFX.countdown();
+}
+
+function beginGame() {
+  phase = PH.PLAY;
+  $cd.classList.add('hidden');
+  $hud.classList.remove('hidden');
+  vel = 0; dist = 0; maxVol = 0; silentT = 0; gameT = 0;
+  obs = []; parts = []; floats = [];
+  obsTimer = 0; destroyCount = 0; destroyTexts = [];
+  volHist = []; hitIdxs = []; trails = [];
+  gDist = 0; gIdx = 0; gDone = false; gDoneShown = false;
+  overtook = false; overtookShown = false;
+  sonicActive = false; sonicT = 0;
+  if (ghost) {
+    $gBar.style.display = 'block';
+    $gLabels.classList.remove('hidden');
+    $glTh.textContent = `${Math.round(ghost.d)}m ${ghost.n || '???'}`;
+  }
+  SFX.launch();
+}
+
+function beginResult() {
+  phase = PH.RESULT;
+  SFX.land();
+  try { navigator.vibrate(200); } catch (e) {}
+  $hud.classList.add('hidden');
+  $gBar.style.display = 'none';
+  $gLabels.classList.add('hidden');
+  $float.style.opacity = '0';
+  stopMic();
+
+  const d = Math.round(dist);
+  const ti = getTitle(dist);
+
+  $rDist.textContent = d + 'm';
+  $rTitle.textContent = '🏆 ' + ti.t;
+  $rSub.textContent = ti.s;
+
+  // Stats
+  const obsKind = {};
+  destroyTexts.forEach(t => { obsKind[t] = (obsKind[t] || 0) + 1; });
+  let obsStr = '';
+  for (const [k, v] of Object.entries(obsKind)) obsStr += `${k}${v > 1 ? ' x' + v : ''}, `;
+  obsStr = obsStr.slice(0, -2) || '없음';
+
+  $rStats.innerHTML = `
+    <div class="stat"><span>📢 최대 비명</span><b>${Math.round(maxVol)}dB</b></div>
+    <div class="stat"><span>💥 장애물 파괴</span><b>${destroyCount}개</b></div>
+    <div class="stat"><span>📋 읽씹한 업무</span><b>${obsStr}</b></div>
+  `;
+
+  // VS
+  if (ghost) {
+    $rVs.classList.remove('hidden');
+    if (dist >= ghost.d) {
+      $rVs.innerHTML = `⚔️ ${ghost.n || '???'} 꺾었다!!! 🏆`;
+      SFX.win();
+    } else {
+      $rVs.innerHTML = `야근 확정... 😭<br><span style="font-size:13px;color:rgba(255,255,255,.5)">${ghost.n || '???'}에게 복수할래?</span>`;
+    }
+  } else {
+    $rVs.classList.add('hidden');
+  }
+
+  // Timestamp
+  const now = new Date();
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const ap = now.getHours() < 12 ? '오전' : '오후';
+  const h = now.getHours() % 12 || 12;
+  const m = String(now.getMinutes()).padStart(2, '0');
+  $rTs.textContent = `📅 ${days[now.getDay()]} ${ap} ${h}:${m}의 비명`;
+
+  drawWaveform();
+  $result.classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════
+// Share
+// ═══════════════════════════════════════
+function shareText() {
+  const ti = getTitle(dist);
+  const url = shareUrl();
+  return `🏢 퇴근 발사기에서 ${Math.round(dist)}m 날아감\n🏆 칭호: ${ti.t} (${ti.s})\n📢 최대 비명: ${Math.round(maxVol)}dB\n💥 읽씹한 업무: ${destroyTexts.length > 0 ? destroyTexts.slice(0, 4).join(', ') : '없음'}\n\n너도 퇴근해봐 👉 ${url}\n내 기록 이기면 인정 ㅋㅋ`;
+}
+
+function shareUrl() {
+  const samples = [];
+  const step = Math.max(1, Math.floor(volHist.length / 50));
+  for (let i = 0; i < volHist.length && samples.length < 50; i += step) {
+    samples.push(Math.round(volHist[i]));
+  }
+  const data = { n: name, d: Math.round(dist), t: getTitle(dist).t, v: samples, o: destroyCount, ts: Date.now() };
+  return location.origin + location.pathname + '?g=' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+
+// ═══════════════════════════════════════
+// Waveform
+// ═══════════════════════════════════════
+function drawWaveform() {
+  const wc = $('waveC');
+  const wx = wc.getContext('2d');
+  const dpr = 2;
+  wc.width = wc.clientWidth * dpr;
+  wc.height = wc.clientHeight * dpr;
+  wx.scale(dpr, dpr);
+  const rw = wc.clientWidth, rh = wc.clientHeight;
+
+  if (!volHist.length) return;
+
+  wx.fillStyle = 'rgba(255,255,255,0.02)';
+  wx.fillRect(0, 0, rw, rh);
+
+  const len = volHist.length;
+  const dx = rw / len;
+
+  const grd = wx.createLinearGradient(0, 0, rw, 0);
+  grd.addColorStop(0, '#4CAF50');
+  grd.addColorStop(0.35, '#FFEB3B');
+  grd.addColorStop(0.65, '#FF6B35');
+  grd.addColorStop(1, '#9C27B0');
+
+  // Fill
+  wx.beginPath();
+  wx.moveTo(0, rh);
+  for (let i = 0; i < len; i++) {
+    wx.lineTo(i * dx, rh - (volHist[i] / 130) * rh * 0.9);
+  }
+  wx.lineTo(rw, rh);
+  wx.closePath();
+  wx.fillStyle = 'rgba(255,107,53,0.08)';
+  wx.fill();
+
+  // Stroke
+  wx.strokeStyle = grd;
+  wx.lineWidth = 1.5;
+  wx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const y = rh - (volHist[i] / 130) * rh * 0.9;
+    i === 0 ? wx.moveTo(0, y) : wx.lineTo(i * dx, y);
+  }
+  wx.stroke();
+
+  // Hits
+  for (const hi of hitIdxs) {
+    wx.fillStyle = 'rgba(255,23,68,0.5)';
+    wx.fillRect(hi * dx - 1, 0, 2, rh);
+  }
+
+  // Max marker
+  let mi = 0;
+  for (let i = 1; i < len; i++) if (volHist[i] > volHist[mi]) mi = i;
+  const mx = mi * dx, my = rh - (volHist[mi] / 130) * rh * 0.9;
+  wx.fillStyle = '#FFD700';
+  wx.beginPath();
+  wx.arc(mx, my, 3, 0, Math.PI * 2);
+  wx.fill();
+  wx.font = 'bold 9px monospace';
+  wx.fillStyle = '#FFD700';
+  wx.textAlign = mx > rw * 0.8 ? 'right' : 'left';
+  wx.fillText('★' + Math.round(volHist[mi]) + 'dB', mx + (mx > rw * 0.8 ? -6 : 6), my - 4);
+}
+
+// ═══════════════════════════════════════
+// Particles & Floating Text
+// ═══════════════════════════════════════
+function addParts(px, py, n, col, spread = 4, life = 0.6) {
+  for (let i = 0; i < n; i++) {
+    parts.push({
+      x: px, y: py,
+      vx: (Math.random() - 0.5) * spread * 2,
+      vy: (Math.random() - 0.5) * spread * 2,
+      life: life + Math.random() * 0.3,
+      ml: life + Math.random() * 0.3,
+      col, size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function addSmoke(px, py) {
+  parts.push({
+    x: px + (Math.random() - 0.5) * 12,
+    y: py + 12,
+    vx: (Math.random() - 0.5) * 0.8,
+    vy: 1.5 + Math.random() * 2.5,
+    life: 0.35 + Math.random() * 0.2,
+    ml: 0.5,
+    col: null, size: 5 + Math.random() * 7,
+    smoke: true
+  });
+}
+
+function addFloat(px, py, txt, col = '#FFD700', size = 16) {
+  floats.push({ x: px, y: py, txt, col, size, life: 1.2, ml: 1.2, vy: -1.5 });
+}
+
+function showFloatEvent(txt) {
+  $float.textContent = txt;
+  $float.style.opacity = '1';
+  floatTextA = 1;
+  floatTextTimer = 0;
+}
+
+// ═══════════════════════════════════════
+// Obstacles
+// ═══════════════════════════════════════
+function spawnObs() {
+  const left = Math.random() > 0.5;
+  const txt = OBS_TEXTS[Math.floor(Math.random() * OBS_TEXTS.length)];
+  obs.push({
+    x: left ? -120 : W + 120,
+    y: H * 0.25 + Math.random() * H * 0.35,
+    tx: W * 0.25 + Math.random() * W * 0.5,
+    txt, alive: true,
+    time: 0
+  });
+}
+
+// ═══════════════════════════════════════
+// Character Drawing
+// ═══════════════════════════════════════
+function drawChar(cx, cy, sc, mode, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.scale(sc, sc);
+
+  const skin = '#FFD5B8', shirt = '#3D7BF7', pants = '#1A237E', tie = '#F44336', hair = '#2D2D2D', shoe = '#1A1A1A';
+
+  // Hair
+  ctx.fillStyle = hair;
+  ctx.fillRect(-7, -24, 14, 5);
+  ctx.fillRect(-6, -25, 12, 3);
+
+  // Head
+  ctx.fillStyle = skin;
+  ctx.fillRect(-6, -19, 12, 11);
+
+  // Ears
+  ctx.fillRect(-7, -16, 2, 4);
+  ctx.fillRect(5, -16, 2, 4);
+
+  // Eyes
+  if (mode === 'falling') {
+    // Closed / resigned
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-4, -15, 3, 1);
+    ctx.fillRect(1, -15, 3, 1);
+  } else if (mode === 'worried') {
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-4, -16, 2, 2);
+    ctx.fillRect(2, -16, 2, 2);
+    // Worry brows
+    ctx.fillRect(-5, -18, 3, 1);
+    ctx.fillRect(2, -18, 3, 1);
+  } else if (mode === 'fast') {
+    // Glowing eyes
+    ctx.fillStyle = '#FFD700';
+    ctx.fillRect(-4, -16, 3, 3);
+    ctx.fillRect(1, -16, 3, 3);
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(-3, -15, 1, 1);
+    ctx.fillRect(2, -15, 1, 1);
+  } else {
+    // Normal / idle
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-4, -16, 2, 3);
+    ctx.fillRect(2, -16, 2, 3);
+    // Pupils
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-3, -15, 1, 2);
+    ctx.fillRect(3, -15, 1, 2);
+  }
+
+  // Mouth
+  if (mode === 'rising' || mode === 'fast') {
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-3, -10, 6, 4);
+    ctx.fillStyle = '#C62828';
+    ctx.fillRect(-2, -9, 4, 3);
+    ctx.fillStyle = '#FF8A80';
+    ctx.fillRect(-1, -8, 2, 1);
+  } else if (mode === 'idle') {
+    ctx.fillStyle = '#999';
+    ctx.fillRect(-2, -10, 4, 1);
+    // Sigh effect (idle frame 2)
+    if (Math.floor(idleT * 1.5) % 2 === 1) {
+      ctx.fillStyle = 'rgba(200,200,200,0.3)';
+      ctx.fillRect(3, -11, 4, 3);
+    }
+  } else if (mode === 'worried') {
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-2, -10, 4, 2);
+  } else {
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-2, -10, 4, 2);
+  }
+
+  // Torso
+  ctx.fillStyle = shirt;
+  ctx.fillRect(-6, -8, 12, 11);
+  // Collar
+  ctx.fillStyle = '#ECEFF1';
+  ctx.fillRect(-4, -8, 8, 2);
+
+  // Tie
+  ctx.fillStyle = tie;
+  const tieWave = (mode === 'rising' || mode === 'fast') ? Math.sin(Date.now() * 0.01) * 2 : 0;
+  const tieY = (mode === 'rising' || mode === 'fast') ? -3 : 0;
+  ctx.fillRect(-1 + tieWave * 0.3, -6 + tieY, 2, 8);
+  ctx.fillRect(-2 + tieWave * 0.5, -5 + tieY, 4, 2);
+  ctx.fillRect(-2 + tieWave * 0.2, 0 + tieY, 4, 2);
+
+  // Arms
+  ctx.fillStyle = shirt;
+  if (mode === 'rising' || mode === 'fast') {
+    // Arms spread up
+    const wave = Math.sin(Date.now() * 0.008) * 2;
+    ctx.fillRect(-9, -7 + wave, 3, 7);
+    ctx.fillRect(6, -7 - wave, 3, 7);
+    ctx.fillStyle = skin;
+    ctx.fillRect(-9, -8 + wave, 3, 3);
+    ctx.fillRect(6, -8 - wave, 3, 3);
+  } else if (mode === 'worried') {
+    const w = Math.sin(Date.now() * 0.015) * 3;
+    ctx.fillRect(-9, -4 + w, 3, 6);
+    ctx.fillRect(6, -2 - w, 3, 6);
+    ctx.fillStyle = skin;
+    ctx.fillRect(-9, -5 + w, 3, 3);
+    ctx.fillRect(6, -3 - w, 3, 3);
+  } else {
+    // Arms down
+    ctx.fillRect(-8, -6, 2, 9);
+    ctx.fillRect(6, -6, 2, 9);
+    ctx.fillStyle = skin;
+    ctx.fillRect(-8, 2, 2, 3);
+    ctx.fillRect(6, 2, 2, 3);
+  }
+
+  // Pants
+  ctx.fillStyle = pants;
+  ctx.fillRect(-6, 3, 5, 7);
+  ctx.fillRect(1, 3, 5, 7);
+
+  // Shoes
+  ctx.fillStyle = shoe;
+  ctx.fillRect(-7, 10, 5, 2);
+  ctx.fillRect(2, 10, 5, 2);
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════
+// Background Layers
+// ═══════════════════════════════════════
+function drawBg(d) {
+  // Determine stage
+  if (d < 100) drawBgOffice(d);
+  else if (d < 300) drawBgCity(d);
+  else if (d < 600) drawBgNature(d);
+  else if (d < 1000) drawBgStrato(d);
+  else drawBgSpace(d);
+}
+
+function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+
+function lerpCol(a, b, t) {
+  t = Math.max(0, Math.min(1, t));
+  const p = (s) => parseInt(s.slice(1), 16);
+  const ah = p(a), bh = p(b);
+  const r = Math.round(lerp((ah >> 16) & 0xff, (bh >> 16) & 0xff, t));
+  const g = Math.round(lerp((ah >> 8) & 0xff, (bh >> 8) & 0xff, t));
+  const bl = Math.round(lerp(ah & 0xff, bh & 0xff, t));
+  return `rgb(${r},${g},${bl})`;
+}
+
+function drawBgOffice(d) {
+  const t = d / 100;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, lerpCol('#2A2A3A', '#4A4A6A', t));
+  g.addColorStop(1, lerpCol('#3A3A3A', '#6A8FAA', t));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Fluorescent light flicker at low d
+  if (d < 30) {
+    const flicker = 0.6 + Math.sin(Date.now() * 0.02) * 0.15;
+    ctx.fillStyle = `rgba(240,240,192,${flicker * (1 - t)})`;
+    ctx.fillRect(W * 0.2, 10, W * 0.6, 4);
+    ctx.fillRect(W * 0.1, 10, W * 0.8, 2);
+  }
+
+  // Scrolling buildings
+  const scroll = d * 4;
+  for (let i = 0; i < 15; i++) {
+    const b = buildings[i % buildings.length];
+    const bx = b.x * W * 1.3 - 30;
+    const by = ((i * 130 - scroll) % (H + 400)) + 100;
+    if (by > H + 200 || by + b.h < -100) continue;
+
+    ctx.fillStyle = b.dark ? '#35354A' : '#454560';
+    ctx.fillRect(bx, by, b.w, b.h);
+
+    // Windows
+    let wi = 0;
+    for (let wy = by + 5; wy < by + b.h - 5; wy += 12) {
+      for (let wx = bx + 4; wx < bx + b.w - 6; wx += 10) {
+        ctx.fillStyle = (wi < b.winOn.length && b.winOn[wi]) ? '#F0F0C0' : '#252535';
+        ctx.fillRect(wx, wy, 6, 8);
+        wi++;
+      }
+    }
+  }
+}
+
+function drawBgCity(d) {
+  const t = (d - 100) / 200;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, lerpCol('#87CEEB', '#64B5F6', t));
+  g.addColorStop(0.7, lerpCol('#87CEEB', '#90CAF9', t));
+  g.addColorStop(1, lerpCol('#D4C5A9', '#81C784', t));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Clouds (parallax)
+  const sc = d * 1.8;
+  for (let i = 0; i < 8; i++) {
+    const cx = ((i * 130 + sc * 0.15) % (W + 100)) - 50;
+    const cy = H * 0.12 + Math.sin(i * 2.1) * H * 0.12 + i * 10;
+    drawCloud(cx, cy, 0.6 + i * 0.08);
+  }
+
+  // Buildings fading out
+  const bFade = Math.max(0, 1 - t * 1.5);
+  if (bFade > 0) {
+    for (let i = 0; i < 10; i++) {
+      const b = buildings[(i + 5) % buildings.length];
+      const bx = b.x * W * 1.2 - 20;
+      const by = H * 0.65 + i * 20 - (sc % 300) * 0.1;
+      if (by < H && by > -50) {
+        ctx.globalAlpha = bFade * 0.6;
+        ctx.fillStyle = b.dark ? '#7A7A8A' : '#9A9AA5';
+        ctx.fillRect(bx, by, b.w * 0.6, b.h * 0.4);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+function drawCloud(cx, cy, opacity) {
+  ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 32, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx - 18, cy + 4, 22, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 16, cy + 3, 24, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 5, cy - 8, 18, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBgNature(d) {
+  const t = (d - 300) / 300;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, lerpCol('#64B5F6', '#42A5F5', t));
+  g.addColorStop(0.4, lerpCol('#81D4FA', '#64B5F6', t));
+  g.addColorStop(0.7, lerpCol('#4CAF50', '#2196F3', t));
+  g.addColorStop(1, lerpCol('#66BB6A', '#1976D2', t));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Clouds higher
+  const sc = d * 1.2;
+  for (let i = 0; i < 6; i++) {
+    const cx = ((i * 110 + sc * 0.1) % (W + 80)) - 40;
+    const cy = H * 0.08 + Math.sin(i * 1.7) * H * 0.06;
+    drawCloud(cx, cy, 0.45 * (1 - t * 0.5));
+  }
+
+  // Mountains
+  const mFade = Math.max(0, 1 - t * 1.8);
+  if (mFade > 0) {
+    ctx.globalAlpha = mFade;
+    // Far mountains
+    ctx.fillStyle = lerpCol('#66BB6A', '#42A5F5', t);
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      const mh = Math.sin(x * 0.008 + 1) * 50 + Math.sin(x * 0.015) * 30 + H * 0.5;
+      ctx.lineTo(x, mh);
+    }
+    ctx.lineTo(W, H);
+    ctx.fill();
+
+    // Near mountains
+    ctx.fillStyle = lerpCol('#4CAF50', '#1976D2', t);
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) {
+      const mh = Math.sin(x * 0.012 + 3) * 40 + Math.sin(x * 0.02 + 1) * 25 + H * 0.6;
+      ctx.lineTo(x, mh);
+    }
+    ctx.lineTo(W, H);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Ocean at high t
+  if (t > 0.4) {
+    const oA = Math.min(1, (t - 0.4) * 2.5);
+    ctx.fillStyle = `rgba(33,150,243,${oA * 0.3})`;
+    ctx.fillRect(0, H * 0.7, W, H * 0.3);
+    // Waves
+    ctx.strokeStyle = `rgba(255,255,255,${oA * 0.15})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      const wy = H * 0.72 + i * 15;
+      for (let x = 0; x <= W; x += 4) {
+        const y = wy + Math.sin(x * 0.03 + Date.now() * 0.002 + i) * 3;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawBgStrato(d) {
+  const t = (d - 600) / 400;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, lerpCol('#E3F2FD', '#1A237E', t));
+  g.addColorStop(0.5, lerpCol('#90CAF9', '#0D1B3E', t));
+  g.addColorStop(1, lerpCol('#42A5F5', '#0D0D2E', t));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars fading in
+  for (const s of stars) {
+    const twinkle = 0.4 + 0.6 * Math.sin(Date.now() * 0.003 + s.p);
+    ctx.fillStyle = `rgba(255,255,255,${twinkle * t * 0.8})`;
+    ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
+  }
+
+  // Clouds below fading out
+  if (t < 0.5) {
+    const cA = (1 - t * 2) * 0.3;
+    for (let i = 0; i < 5; i++) {
+      const cx = ((i * 140 + d * 0.3) % W);
+      const cy = H * 0.7 + i * 25;
+      drawCloud(cx, cy, cA);
+    }
+  }
+
+  // Earth curve appearing
+  if (t > 0.6) {
+    const eA = (t - 0.6) * 2.5;
+    ctx.globalAlpha = Math.min(1, eA);
+    ctx.fillStyle = '#1565C0';
+    ctx.beginPath();
+    ctx.ellipse(W / 2, H + 250, 500, 280, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Land
+    ctx.fillStyle = '#2E7D32';
+    ctx.beginPath();
+    ctx.ellipse(W / 2 - 40, H + 230, 100, 60, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Atmosphere
+    ctx.strokeStyle = 'rgba(129,212,250,0.3)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(W / 2, H + 250, 505, 285, 0, Math.PI + 0.3, Math.PI * 2 - 0.3);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawBgSpace(d) {
+  ctx.fillStyle = '#0D0D0D';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  const sd = d * 0.15;
+  for (const s of stars) {
+    const twinkle = 0.3 + 0.7 * Math.sin(Date.now() * 0.003 + s.p);
+    const sy = ((s.y * H - sd) % H + H) % H;
+    ctx.fillStyle = `rgba(255,${200 + Math.floor(s.p * 20)},${150 + Math.floor(s.p * 30)},${twinkle})`;
+    ctx.fillRect(s.x * W, sy, s.r, s.r);
+  }
+
+  // Nebula
+  ctx.fillStyle = 'rgba(156,39,176,0.04)';
+  ctx.beginPath();
+  ctx.ellipse(W * 0.3, ((H * 0.4 - sd * 0.3) % H + H) % H, 100, 60, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Earth
+  const earthY = H + 120 - Math.min((d - 1000) / 500 * 60, 60);
+  ctx.fillStyle = '#1565C0';
+  ctx.beginPath();
+  ctx.ellipse(W / 2, earthY + 350, 450, 360, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(46,125,50,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(W / 2 - 60, earthY + 320, 140, 90, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(76,175,80,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(W / 2 + 80, earthY + 340, 80, 50, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Atmosphere glow
+  ctx.strokeStyle = 'rgba(129,212,250,0.25)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.ellipse(W / 2, earthY + 350, 455, 365, 0, Math.PI + 0.2, Math.PI * 2 - 0.2);
+  ctx.stroke();
+
+  // ISS
+  if (d > 1200) {
+    const ix = W / 2 + Math.sin(Date.now() * 0.0004) * 120;
+    const iy = H * 0.25 + Math.cos(Date.now() * 0.0003) * 40;
+    ctx.fillStyle = '#bbb';
+    ctx.fillRect(ix - 16, iy - 2, 32, 4);
+    ctx.fillRect(ix - 2, iy - 10, 4, 20);
+    ctx.fillStyle = '#4FC3F7';
+    ctx.fillRect(ix - 16, iy - 8, 12, 4);
+    ctx.fillRect(ix + 4, iy - 8, 12, 4);
+    ctx.fillRect(ix - 16, iy + 4, 12, 4);
+    ctx.fillRect(ix + 4, iy + 4, 12, 4);
+  }
+
+  // Satellites
+  if (d > 1100) {
+    const sx = ((Date.now() * 0.02 + d) % (W + 40)) - 20;
+    ctx.fillStyle = '#999';
+    ctx.fillRect(sx, H * 0.15, 4, 4);
+    ctx.fillStyle = '#4FC3F7';
+    ctx.fillRect(sx - 6, H * 0.15 + 1, 5, 2);
+    ctx.fillRect(sx + 4, H * 0.15 + 1, 5, 2);
+  }
+}
+
+// ═══════════════════════════════════════
+// Drawing: Obstacles
+// ═══════════════════════════════════════
+function drawObs(o) {
+  if (!o.alive) return;
+  ctx.save();
+  ctx.font = 'bold 12px system-ui,sans-serif';
+  const m = ctx.measureText(o.txt);
+  const bw = m.width + 28, bh = 38;
+  const bx = o.x - bw / 2, by = o.y - bh / 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx + 2, by + 3, bw, bh, 10);
+  else { ctx.rect(bx + 2, by + 3, bw, bh); }
+  ctx.fill();
+
+  // Bubble
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10);
+  else { ctx.rect(bx, by, bw, bh); }
+  ctx.fill();
+
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(o.x - 7, by + bh);
+  ctx.lineTo(o.x, by + bh + 10);
+  ctx.lineTo(o.x + 7, by + bh);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10);
+  else { ctx.rect(bx, by, bw, bh); }
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(o.txt, o.x, o.y);
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════
+// Drawing: Landing Scene
+// ═══════════════════════════════════════
+function drawLanding(dim = 0) {
+  // Sky
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1A1A2E');
+  g.addColorStop(0.5, '#252540');
+  g.addColorStop(1, '#3A3A4A');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  for (const s of stars) {
+    if (s.y > 0.55) continue;
+    const tw = 0.3 + 0.7 * Math.sin(Date.now() * 0.002 + s.p);
+    ctx.fillStyle = `rgba(255,255,255,${tw * 0.4})`;
+    ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
+  }
+
+  // Moon
+  ctx.fillStyle = 'rgba(255,255,230,0.12)';
+  ctx.beginPath();
+  ctx.arc(W * 0.8, H * 0.12, 25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,230,0.04)';
+  ctx.beginPath();
+  ctx.arc(W * 0.8, H * 0.12, 40, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Buildings
+  const bY = H * 0.55;
+  for (let i = 0; i < 9; i++) {
+    const b = buildings[i];
+    const bw = b.w * 1.1;
+    const bh = b.h * 0.8;
+    const bx = i * (W / 8) - 15;
+    ctx.fillStyle = b.dark ? '#2D2D40' : '#383850';
+    ctx.fillRect(bx, bY - bh, bw, bh + H);
+
+    // Windows
+    let wi = 0;
+    for (let wy = bY - bh + 6; wy < bY; wy += 12) {
+      for (let wx = bx + 4; wx < bx + bw - 5; wx += 10) {
+        const on = wi < b.winOn.length ? b.winOn[wi] : false;
+        ctx.fillStyle = on ? '#F0F0C0' : '#1E1E30';
+        ctx.fillRect(wx, wy, 6, 8);
+        wi++;
+      }
+    }
+  }
+
+  // Ground
+  ctx.fillStyle = '#252530';
+  ctx.fillRect(0, bY, W, H - bY);
+  // Sidewalk
+  ctx.fillStyle = '#333340';
+  ctx.fillRect(0, bY, W, 6);
+
+  // Character with idle animation (head bob + sigh)
+  const bobY = Math.sin(idleT * 1.5) * 2;
+  drawChar(W / 2, bY - 14 + bobY, 3, 'idle');
+
+  // Dimming overlay
+  if (dim > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${dim})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// ═══════════════════════════════════════
+// Main Update
+// ═══════════════════════════════════════
+function update(dt) {
+  idleT += dt;
+
+  // Shake decay
+  shakeAmt *= 0.88;
+  if (shakeAmt < 0.2) shakeAmt = 0;
+  shakeX = (Math.random() - 0.5) * shakeAmt * 2;
+  shakeY = (Math.random() - 0.5) * shakeAmt * 2;
+
+  // Flash decay
+  flashA = Math.max(0, flashA - dt * 5);
+
+  // Float text
+  if (floatTextA > 0) {
+    floatTextTimer += dt;
+    if (floatTextTimer > 2) {
+      floatTextA -= dt * 2;
+      $float.style.opacity = Math.max(0, floatTextA);
+    }
+  }
+
+  // ─── COUNTDOWN ───
+  if (phase === PH.CD) {
+    cdT += dt;
+    if (cdT >= 1) {
+      cdT -= 1;
+      cdVal--;
+      if (cdVal > 0) {
+        $cd.textContent = cdVal;
+        $cd.style.color = '#fff';
+        SFX.countdown();
+      } else if (cdVal === 0) {
+        $cd.textContent = '악!!!!!';
+        $cd.style.color = '#FF1744';
+        $cd.style.fontSize = 'min(100px,22vw)';
+        SFX.go();
+      } else {
+        $cd.style.color = '#fff';
+        $cd.style.fontSize = 'min(140px,30vw)';
+        beginGame();
+      }
+    }
+    const sc = 1 + 0.25 * Math.sin(cdT * Math.PI);
+    $cd.style.transform = `scale(${sc})`;
+  }
+
+  // ─── PLAY ───
+  if (phase === PH.PLAY) {
+    gameT += dt;
+    vol = readVol();
+    normVol = Math.min(vol * 1.6, 150);
+    if (normVol > maxVol) maxVol = normVol;
+
+    volHist.push(normVol);
+
+    // Thrust mapping
+    if (normVol < 30) thrust = 0;
+    else if (normVol < 60) thrust = ((normVol - 30) / 30) * 3;
+    else if (normVol < 80) thrust = 3 + ((normVol - 60) / 20) * 4;
+    else if (normVol < 100) thrust = 7 + ((normVol - 80) / 20) * 3;
+    else thrust = 10 + ((normVol - 100) / 50) * 5;
+
+    // Silence => fall
+    if (normVol < 15) {
+      silentT += dt;
+      if (silentT > 0.5) thrust = -3;
+    } else {
+      silentT = 0;
+    }
+
+    // Sonic boom
+    if (normVol > 100 && !sonicActive) {
+      sonicActive = true;
+      sonicT = 0;
+      SFX.boom();
+      shakeAmt = 15;
+      try { navigator.vibrate([50, 30, 50, 30, 100]); } catch (e) {}
+    }
+    if (normVol < 75) sonicActive = false;
+    if (sonicActive) sonicT += dt;
+
+    // Physics
+    const gravity = 2.0;
+    const accel = (thrust - gravity) * dt * 2.8;
+    vel += accel;
+    vel = Math.max(vel, -4);
+    dist += vel * dt * 35;
+    if (dist < 0) dist = 0;
+
+    // HUD
+    const vPct = Math.min(normVol / 120 * 100, 100);
+    $volFill.style.height = vPct + '%';
+    if (vPct > 80) {
+      $volGlow.style.height = vPct + '%';
+      $volGlow.style.opacity = '1';
+    } else {
+      $volGlow.style.opacity = '0';
+    }
+    $volNum.textContent = Math.round(normVol);
+    $distNum.textContent = Math.round(dist) + 'm';
+
+    // Obstacles
+    obsTimer += dt;
+    const obsInterval = 2 + Math.random() * 2;
+    if (obsTimer > obsInterval && obs.filter(o => o.alive).length < 4) {
+      obsTimer = 0;
+      spawnObs();
+    }
+
+    const cx = W / 2, cy = H * 0.42;
+    for (const o of obs) {
+      if (!o.alive) continue;
+      o.time += dt;
+      // Move toward target
+      const dx = o.tx - o.x;
+      const spd = Math.min(Math.abs(dx), Math.abs(dx) * dt * 3.5);
+      o.x += Math.sign(dx) * spd;
+
+      // Collision
+      const od = Math.sqrt((cx - o.x) ** 2 + (cy - o.y) ** 2);
+      if (od < 45 && o.alive && o.time > 0.3) {
+        if (normVol > 70) {
+          // Destroy!
+          o.alive = false;
+          destroyCount++;
+          destroyTexts.push(o.txt);
+          addParts(o.x, o.y, 15, '#FF1744', 5, 0.7);
+          addParts(o.x, o.y, 8, '#FFF', 3, 0.4);
+          addFloat(o.x, o.y - 20, '읽씹!', '#FFD700', 20);
+          SFX.destroy();
+          flashCol = '#FFD700'; flashA = 0.25;
+        } else {
+          // Hit (slow down)
+          o.alive = false;
+          vel *= 0.65;
+          SFX.hit();
+          flashCol = '#FF1744'; flashA = 0.35;
+          shakeAmt = 8;
+          try { navigator.vibrate(100); } catch (e) {}
+          hitIdxs.push(volHist.length);
+          addParts(o.x, o.y, 6, '#FF1744', 3, 0.4);
+        }
+      }
+    }
+    obs = obs.filter(o => o.alive);
+
+    // Trail smoke
+    if (vel > 0.5) {
+      addSmoke(cx, cy + 30);
+    }
+    // Afterimage
+    if (vel > 4) {
+      trails.push({ x: cx, y: cy, a: 0.4 });
+      if (trails.length > 4) trails.shift();
+    }
+    for (const t of trails) t.a -= dt * 2;
+    trails = trails.filter(t => t.a > 0);
+
+    // Ghost replay
+    if (ghost && ghost.v) {
+      const gLen = ghost.v.length;
+      if (!gDone) {
+        gIdx += dt * (gLen / MAX_TIME);
+        if (gIdx >= gLen) {
+          gDone = true;
+          gDist = ghost.d;
+        } else {
+          const gv = ghost.v[Math.min(Math.floor(gIdx), gLen - 1)];
+          const gt = gv > 30 ? ((gv - 30) / 70) * 10 : 0;
+          gDist += (gt - 2) * dt * 30 * 0.5;
+          if (gDist < 0) gDist = 0;
+          if (gDist > ghost.d) gDist = ghost.d;
+        }
+      }
+
+      const maxD = Math.max(dist, ghost.d, 50);
+      $gBarMe.style.width = Math.min(dist / maxD * 100, 100) + '%';
+      $gBarThem.style.width = Math.min(ghost.d / maxD * 100, 100) + '%';
+      $glMe.textContent = `나 ${Math.round(dist)}m`;
+      $glTh.textContent = `${Math.round(ghost.d)}m ${ghost.n || '???'}`;
+
+      // Overtake
+      if (dist > gDist && !overtookShown && gDist > 5) {
+        overtookShown = true;
+        showFloatEvent('추월!!!');
+        SFX.overtake();
+        flashCol = '#FFD700'; flashA = 0.4;
+        addParts(W / 2, H * 0.3, 20, '#FFD700', 6, 0.8);
+      }
+      // Ghost stops
+      if (gDone && !gDoneShown) {
+        gDoneShown = true;
+        showFloatEvent(`${ghost.n || '???'} 여기서 야근 확정 ㅋㅋ`);
+      }
+    }
+
+    // Check end
+    if (gameT >= MAX_TIME || (vel < -3 && gameT > 1)) {
+      phase = PH.FALL;
+      fallT = 0;
+    }
+  }
+
+  // ─── FALLING ───
+  if (phase === PH.FALL) {
+    fallT += dt;
+    vel -= dt * 6;
+    dist += vel * dt * 12;
+    if (dist < 0) dist = 0;
+    $distNum.textContent = Math.round(dist) + 'm';
+
+    if (fallT > 1.8 || vel < -8) {
+      beginResult();
+    }
+  }
+
+  // ─── Particles ───
+  for (const p of parts) {
+    p.life -= dt;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += dt * 3;
+    if (p.smoke) p.size += dt * 4;
+  }
+  parts = parts.filter(p => p.life > 0);
+
+  // Floating text
+  for (const f of floats) {
+    f.life -= dt;
+    f.y += f.vy;
+    f.vy *= 0.98;
+  }
+  floats = floats.filter(f => f.life > 0);
+}
+
+// ═══════════════════════════════════════
+// Main Draw
+// ═══════════════════════════════════════
+function draw() {
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+  ctx.clearRect(-20, -20, W + 40, H + 40);
+
+  if (phase === PH.LAND || phase === PH.CHALLENGE) {
+    drawLanding();
+  } else if (phase === PH.CD) {
+    drawLanding(0.55);
+  } else if (phase === PH.PLAY || phase === PH.FALL) {
+    drawGameScene();
+  }
+
+  // Particles
+  for (const p of parts) {
+    const a = Math.max(0, p.life / p.ml);
+    if (p.smoke) {
+      ctx.fillStyle = `rgba(255,${120 + Math.random() * 60},50,${a * 0.5})`;
+    } else {
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.col;
+    }
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    ctx.globalAlpha = 1;
+  }
+
+  // Float texts (읽씹! etc)
+  for (const f of floats) {
+    const a = Math.max(0, f.life / f.ml);
+    ctx.globalAlpha = a;
+    ctx.font = `bold ${f.size}px system-ui`;
+    ctx.fillStyle = f.col;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(f.txt, f.x, f.y);
+    // Glow
+    ctx.shadowColor = f.col;
+    ctx.shadowBlur = 10;
+    ctx.fillText(f.txt, f.x, f.y);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // Flash overlay
+  if (flashA > 0) {
+    ctx.globalAlpha = flashA;
+    ctx.fillStyle = flashCol;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function drawGameScene() {
+  drawBg(dist);
+
+  // Draw obstacles
+  for (const o of obs) drawObs(o);
+
+  const cx = W / 2, cy = H * 0.42;
+
+  // Trails (afterimage)
+  for (let i = 0; i < trails.length; i++) {
+    const t = trails[i];
+    drawChar(t.x, cy + (trails.length - i) * 12, 2.5, 'fast', t.a * 0.25);
+  }
+
+  // Ghost character
+  if (ghost && (phase === PH.PLAY || phase === PH.FALL)) {
+    const gx = cx + 35;
+    const gf = gDone ? 'falling' : 'rising';
+    drawChar(gx, cy, 2.5, gf, 0.3);
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText(ghost.n || '???', gx, cy - 35);
+    ctx.fillText(Math.round(gDist) + 'm', gx, cy - 24);
+  }
+
+  // Main character
+  let mode = 'rising';
+  if (vel > 5) mode = 'fast';
+  else if (vel < -0.5) mode = phase === PH.FALL ? 'falling' : 'worried';
+  drawChar(cx, cy, 3.2, mode);
+
+  // Thrust flame
+  if (vel > 0 && phase === PH.PLAY) {
+    const fh = Math.min(vel * 5, 50);
+    const flick = Math.random() * 6;
+    const fy = cy + 35;
+
+    // Outer flame
+    ctx.fillStyle = '#FF6B35';
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, fy);
+    ctx.lineTo(cx + 10, fy);
+    ctx.lineTo(cx + flick, fy + fh);
+    ctx.fill();
+
+    // Inner flame
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, fy);
+    ctx.lineTo(cx + 6, fy);
+    ctx.lineTo(cx + flick * 0.4, fy + fh * 0.6);
+    ctx.fill();
+
+    // Core
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, fy);
+    ctx.lineTo(cx + 3, fy);
+    ctx.lineTo(cx + flick * 0.2, fy + fh * 0.3);
+    ctx.fill();
+  }
+
+  // Sonic boom ring
+  if (sonicActive && sonicT < 0.6) {
+    const r = sonicT * 250;
+    const a = 1 - sonicT / 0.6;
+    ctx.strokeStyle = `rgba(255,255,255,${a})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Second ring
+    if (sonicT > 0.1) {
+      const r2 = (sonicT - 0.1) * 200;
+      ctx.strokeStyle = `rgba(156,39,176,${a * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Speed lines for fast movement
+  if (vel > 3) {
+    const lineA = Math.min(1, (vel - 3) / 7);
+    ctx.strokeStyle = `rgba(255,255,255,${lineA * 0.2})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const lx = Math.random() * W;
+      const ly = Math.random() * H;
+      const ll = 20 + vel * 5;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx, ly + ll);
+      ctx.stroke();
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+// Game Loop
+// ═══════════════════════════════════════
+let lastTs = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
