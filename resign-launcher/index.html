@@ -217,6 +217,9 @@ let obs = [], parts = [], floats = [];
 let obsTimer = 0, destroyCount = 0, destroyTexts = [];
 let volHist = [], hitIdxs = [];
 let shakeAmt = 0, shakeX = 0, shakeY = 0;
+let camOffX = 0, camOffY = 0, camTargX = 0, camTargY = 0;
+let camRot = 0, camRotTarg = 0;
+let prevVel = 0;
 let flashA = 0, flashCol = '#FF1744';
 let sonicActive = false, sonicT = 0;
 let trails = [];
@@ -239,6 +242,8 @@ let overtook = false, overtookShown = false;
 let cdVal = 3, cdT = 0;
 // Fall
 let fallT = 0;
+let fallImpacted = false;
+let fallImpactT = 0;
 // Landing idle
 let idleT = 0;
 
@@ -246,10 +251,35 @@ let idleT = 0;
 let floatTextA = 0, floatTextTimer = 0;
 const $float = document.getElementById('floatText');
 
-// Pre-generated stars
+// Pre-generated stars (seeded for stability)
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+const starRng = seededRandom(42);
 const stars = Array.from({ length: 150 }, () => ({
-  x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * 2, p: Math.random() * Math.PI * 2
+  x: starRng(), y: starRng(), r: 0.5 + starRng() * 2, p: starRng() * Math.PI * 2,
+  layer: starRng() < 0.5 ? 0.05 : (starRng() < 0.5 ? 0.1 : 0.15) // parallax factor
 }));
+
+// Pre-generated cloud positions (world altitudes 300-600m)
+const cloudPositions = [
+  { alt: 310, x: 0.1, scale: 1.2 },
+  { alt: 350, x: 0.55, scale: 0.9 },
+  { alt: 390, x: 0.25, scale: 1.0 },
+  { alt: 430, x: 0.7, scale: 1.1 },
+  { alt: 470, x: 0.15, scale: 0.8 },
+  { alt: 510, x: 0.6, scale: 1.3 },
+  { alt: 540, x: 0.35, scale: 0.95 },
+  { alt: 580, x: 0.8, scale: 1.0 },
+  { alt: 600, x: 0.45, scale: 1.15 },
+  { alt: 340, x: 0.9, scale: 0.85 },
+  { alt: 420, x: 0.05, scale: 1.05 },
+  { alt: 500, x: 0.75, scale: 0.9 }
+];
 
 // Pre-generated buildings
 const buildings = Array.from({ length: 20 }, (_, i) => ({
@@ -408,7 +438,7 @@ function beginGame() {
   overtook = false; overtookShown = false;
   sonicActive = false; sonicT = 0;
   charAngle = 0; charVelAngle = 0; charHitTimer = 0; charHitFlash = false;
-  legFrame = 0; legTimer = 0; bounceActive = false; bounceTimer = 0;
+  legFrame = 0; legTimer = 0; bounceActive = false; bounceTimer = 0; fallImpacted = false; fallImpactT = 0;
   if (ghost) {
     $gBar.style.display = 'block';
     $gLabels.classList.remove('hidden');
@@ -707,11 +737,10 @@ function drawChar(cx, cy, sc, mode, alpha = 1) {
 
   // Tie
   ctx.fillStyle = tie;
-  const tieWave = (mode === 'rising' || mode === 'fast') ? Math.sin(Date.now() * 0.01) * 2 : 0;
-  const tieY = (mode === 'rising' || mode === 'fast') ? -3 : 0;
-  ctx.fillRect(-1 + tieWave * 0.3, -6 + tieY, 2, 8);
-  ctx.fillRect(-2 + tieWave * 0.5, -5 + tieY, 4, 2);
-  ctx.fillRect(-2 + tieWave * 0.2, 0 + tieY, 4, 2);
+  const tieWave = (mode === 'rising' || mode === 'fast') ? Math.sin(Date.now() * 0.01) * 1.2 : 0;
+  ctx.fillRect(-1 + tieWave * 0.2, -6, 2, 8);
+  ctx.fillRect(-2 + tieWave * 0.3, -5, 4, 2);
+  ctx.fillRect(-2 + tieWave * 0.15, 0, 4, 2);
 
   // Arms
   ctx.fillStyle = shirt;
@@ -731,13 +760,13 @@ function drawChar(cx, cy, sc, mode, alpha = 1) {
     ctx.fillRect(-9, -5 + w, 3, 3);
     ctx.fillRect(6, -3 - w, 3, 3);
   } else if (mode === 'falling') {
-    // Ragdoll spread arms
-    const fwave = Math.sin(Date.now() * 0.006) * 3;
-    ctx.fillRect(-11 + fwave, -3, 3, 6);
-    ctx.fillRect(8 - fwave, -5, 3, 6);
+    // Ragdoll spread arms — tighter to torso
+    const fwave = Math.sin(Date.now() * 0.006) * 1.5;
+    ctx.fillRect(-9 + fwave, -3, 3, 6);
+    ctx.fillRect(7 - fwave, -5, 3, 6);
     ctx.fillStyle = skin;
-    ctx.fillRect(-11 + fwave, -4, 3, 3);
-    ctx.fillRect(8 - fwave, -6, 3, 3);
+    ctx.fillRect(-9 + fwave, -4, 3, 3);
+    ctx.fillRect(7 - fwave, -6, 3, 3);
   } else {
     // Arms down
     ctx.fillRect(-8, -6, 2, 9);
@@ -776,30 +805,29 @@ function drawChar(cx, cy, sc, mode, alpha = 1) {
     ctx.fillRect(2, 10, 5, 2);
   }
 
-  // Hit flash overlay
-  if (charHitTimer > 0 && charHitFlash) {
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.fillStyle = 'rgba(255, 23, 68, 0.5)';
-    ctx.fillRect(-15, -30, 30, 50);
-    ctx.globalCompositeOperation = 'source-over';
-  }
-
   ctx.restore();
+
+  // Hit flash — blink entire character by redrawing with red tint
+  if (charHitTimer > 0 && charHitFlash) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = '#FF1744';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 5, 20 * sc, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
 // ═══════════════════════════════════════
 // Background Layers
 // ═══════════════════════════════════════
-function drawBg(d) {
-  // Determine stage
-  if (d < 100) drawBgOffice(d);
-  else if (d < 300) drawBgCity(d);
-  else if (d < 600) drawBgNature(d);
-  else if (d < 1000) drawBgStrato(d);
-  else drawBgSpace(d);
-}
-
+// ── Helpers ──
 function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+function smoothstep(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
 
 function lerpCol(a, b, t) {
   t = Math.max(0, Math.min(1, t));
@@ -809,79 +837,6 @@ function lerpCol(a, b, t) {
   const g = Math.round(lerp((ah >> 8) & 0xff, (bh >> 8) & 0xff, t));
   const bl = Math.round(lerp(ah & 0xff, bh & 0xff, t));
   return `rgb(${r},${g},${bl})`;
-}
-
-function drawBgOffice(d) {
-  const t = d / 100;
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, lerpCol('#2A2A3A', '#4A4A6A', t));
-  g.addColorStop(1, lerpCol('#3A3A3A', '#6A8FAA', t));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  // Fluorescent light flicker at low d
-  if (d < 30) {
-    const flicker = 0.6 + Math.sin(Date.now() * 0.02) * 0.15;
-    ctx.fillStyle = `rgba(240,240,192,${flicker * (1 - t)})`;
-    ctx.fillRect(W * 0.2, 10, W * 0.6, 4);
-    ctx.fillRect(W * 0.1, 10, W * 0.8, 2);
-  }
-
-  // Scrolling buildings
-  const scroll = d * 4;
-  for (let i = 0; i < 15; i++) {
-    const b = buildings[i % buildings.length];
-    const bx = b.x * W * 1.3 - 30;
-    const by = ((i * 130 - scroll) % (H + 400)) + 100;
-    if (by > H + 200 || by + b.h < -100) continue;
-
-    ctx.fillStyle = b.dark ? '#35354A' : '#454560';
-    ctx.fillRect(bx, by, b.w, b.h);
-
-    // Windows
-    let wi = 0;
-    for (let wy = by + 5; wy < by + b.h - 5; wy += 12) {
-      for (let wx = bx + 4; wx < bx + b.w - 6; wx += 10) {
-        ctx.fillStyle = (wi < b.winOn.length && b.winOn[wi]) ? '#F0F0C0' : '#252535';
-        ctx.fillRect(wx, wy, 6, 8);
-        wi++;
-      }
-    }
-  }
-}
-
-function drawBgCity(d) {
-  const t = (d - 100) / 200;
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, lerpCol('#87CEEB', '#64B5F6', t));
-  g.addColorStop(0.7, lerpCol('#87CEEB', '#90CAF9', t));
-  g.addColorStop(1, lerpCol('#D4C5A9', '#81C784', t));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  // Clouds (parallax)
-  const sc = d * 1.8;
-  for (let i = 0; i < 8; i++) {
-    const cx = ((i * 130 + sc * 0.15) % (W + 100)) - 50;
-    const cy = H * 0.12 + Math.sin(i * 2.1) * H * 0.12 + i * 10;
-    drawCloud(cx, cy, 0.6 + i * 0.08);
-  }
-
-  // Buildings fading out
-  const bFade = Math.max(0, 1 - t * 1.5);
-  if (bFade > 0) {
-    for (let i = 0; i < 10; i++) {
-      const b = buildings[(i + 5) % buildings.length];
-      const bx = b.x * W * 1.2 - 20;
-      const by = H * 0.65 + i * 20 - (sc % 300) * 0.1;
-      if (by < H && by > -50) {
-        ctx.globalAlpha = bFade * 0.6;
-        ctx.fillStyle = b.dark ? '#7A7A8A' : '#9A9AA5';
-        ctx.fillRect(bx, by, b.w * 0.6, b.h * 0.4);
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
 }
 
 function drawCloud(cx, cy, opacity) {
@@ -900,183 +855,395 @@ function drawCloud(cx, cy, opacity) {
   ctx.fill();
 }
 
-function drawBgNature(d) {
-  const t = (d - 300) / 300;
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, lerpCol('#64B5F6', '#42A5F5', t));
-  g.addColorStop(0.4, lerpCol('#81D4FA', '#64B5F6', t));
-  g.addColorStop(0.7, lerpCol('#4CAF50', '#2196F3', t));
-  g.addColorStop(1, lerpCol('#66BB6A', '#1976D2', t));
-  ctx.fillStyle = g;
+// ── Sky color keyframes (continuous altitude-based) ──
+const SKY_KEYS = [
+  { alt: 0,    top: [0x1A,0x1A,0x2E], bot: [0x2A,0x2A,0x3A] },
+  { alt: 60,   top: [0x2A,0x2A,0x4E], bot: [0x3A,0x3A,0x5A] },
+  { alt: 100,  top: [0x1A,0x1A,0x3E], bot: [0x2A,0x2A,0x4E] },
+  { alt: 200,  top: [0x0D,0x1B,0x2A], bot: [0x1B,0x28,0x38] },
+  { alt: 400,  top: [0x0A,0x16,0x28], bot: [0x16,0x24,0x36] },
+  { alt: 700,  top: [0x06,0x0E,0x1A], bot: [0x0A,0x14,0x20] },
+  { alt: 1000, top: [0x02,0x04,0x08], bot: [0x06,0x0C,0x14] },
+  { alt: 1500, top: [0x00,0x00,0x00], bot: [0x02,0x04,0x06] }
+];
+
+function getSkyColor(alt) {
+  // Find the two keyframes we're between
+  let lo = SKY_KEYS[0], hi = SKY_KEYS[SKY_KEYS.length - 1];
+  for (let i = 0; i < SKY_KEYS.length - 1; i++) {
+    if (alt >= SKY_KEYS[i].alt && alt <= SKY_KEYS[i + 1].alt) {
+      lo = SKY_KEYS[i]; hi = SKY_KEYS[i + 1]; break;
+    }
+  }
+  if (alt >= hi.alt) { lo = hi; }
+  const range = hi.alt - lo.alt;
+  const t = range > 0 ? smoothstep((alt - lo.alt) / range) : 0;
+  return {
+    top: `rgb(${Math.round(lerp(lo.top[0], hi.top[0], t))},${Math.round(lerp(lo.top[1], hi.top[1], t))},${Math.round(lerp(lo.top[2], hi.top[2], t))})`,
+    bot: `rgb(${Math.round(lerp(lo.bot[0], hi.bot[0], t))},${Math.round(lerp(lo.bot[1], hi.bot[1], t))},${Math.round(lerp(lo.bot[2], hi.bot[2], t))})`
+  };
+}
+
+// ── World-to-screen conversion ──
+// screenY = (elementAltitude - cameraAlt) * parallaxFactor + screenAnchor
+// screenAnchor = center of screen (H * 0.5) for "camera follows character"
+// Camera altitude = dist (the character's altitude)
+function worldToScreen(elementAlt, cameraAlt, parallaxFactor) {
+  // Inverted: higher altitude = higher on screen when camera is below
+  // When camera is at same altitude as element, element is at anchor
+  // When camera is above element, element scrolls down
+  return (elementAlt - cameraAlt) * -parallaxFactor + H * 0.5;
+}
+
+// ── Single unified background ──
+function drawBg(d) {
+  // === 1. SKY GRADIENT ===
+  const sky = getSkyColor(d);
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, sky.top);
+  grad.addColorStop(1, sky.bot);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  // Clouds higher
-  const sc = d * 1.2;
-  for (let i = 0; i < 6; i++) {
-    const cx = ((i * 110 + sc * 0.1) % (W + 80)) - 40;
-    const cy = H * 0.08 + Math.sin(i * 1.7) * H * 0.06;
-    drawCloud(cx, cy, 0.45 * (1 - t * 0.5));
+  // === 2. STARS (altitude 600m+, 3 parallax layers) ===
+  const starOpacity = d < 600 ? 0 : Math.min(1, (d - 600) / 400);
+  if (starOpacity > 0.01) {
+    const now = Date.now();
+    for (const s of stars) {
+      // Each star at a fixed world position, parallax shifts it
+      const sy = ((s.y * H * 8 - d * s.layer) % (H + 20) + H + 20) % (H + 20) - 10;
+      if (sy < -5 || sy > H + 5) continue;
+      const twinkle = 0.3 + 0.7 * Math.sin(now * 0.002 + s.p);
+      const warmth = s.p / (Math.PI * 2);
+      const r = 255;
+      const g = 200 + Math.floor(warmth * 55);
+      const b = 150 + Math.floor(warmth * 80);
+      ctx.fillStyle = `rgba(${r},${g},${b},${twinkle * starOpacity})`;
+      ctx.fillRect(s.x * W, sy, s.r, s.r);
+    }
   }
 
-  // Mountains
-  const mFade = Math.max(0, 1 - t * 1.8);
-  if (mFade > 0) {
-    ctx.globalAlpha = mFade;
-    // Far mountains
-    ctx.fillStyle = lerpCol('#66BB6A', '#42A5F5', t);
+  // === 3. NEBULA (very high altitude, subtle) ===
+  if (d > 800) {
+    const nebA = Math.min(0.06, (d - 800) / 5000);
+    ctx.fillStyle = `rgba(156,39,176,${nebA})`;
+    const nebY = worldToScreen(1400, d, 0.08);
     ctx.beginPath();
-    ctx.moveTo(0, H);
-    for (let x = 0; x <= W; x += 8) {
-      const mh = Math.sin(x * 0.008 + 1) * 50 + Math.sin(x * 0.015) * 30 + H * 0.5;
-      ctx.lineTo(x, mh);
-    }
-    ctx.lineTo(W, H);
+    ctx.ellipse(W * 0.3, nebY, 120, 70, 0.5, 0, Math.PI * 2);
     ctx.fill();
-
-    // Near mountains
-    ctx.fillStyle = lerpCol('#4CAF50', '#1976D2', t);
+    ctx.fillStyle = `rgba(100,50,180,${nebA * 0.6})`;
     ctx.beginPath();
-    ctx.moveTo(0, H);
-    for (let x = 0; x <= W; x += 8) {
-      const mh = Math.sin(x * 0.012 + 3) * 40 + Math.sin(x * 0.02 + 1) * 25 + H * 0.6;
-      ctx.lineTo(x, mh);
-    }
-    ctx.lineTo(W, H);
+    ctx.ellipse(W * 0.7, nebY - 40, 80, 50, -0.3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
   }
 
-  // Ocean at high t
-  if (t > 0.4) {
-    const oA = Math.min(1, (t - 0.4) * 2.5);
-    ctx.fillStyle = `rgba(33,150,243,${oA * 0.3})`;
-    ctx.fillRect(0, H * 0.7, W, H * 0.3);
-    // Waves
-    ctx.strokeStyle = `rgba(255,255,255,${oA * 0.15})`;
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
+  // === 4. MOON (altitude 1200m+) ===
+  if (d > 900) {
+    const moonScreenY = worldToScreen(1600, d, 0.06);
+    const moonScreenX = W * 0.82;
+    const moonA = smoothstep(Math.min(1, (d - 900) / 300));
+    if (moonScreenY > -80 && moonScreenY < H + 80) {
+      // Outer glow
+      ctx.fillStyle = `rgba(255,255,230,${0.03 * moonA})`;
       ctx.beginPath();
-      const wy = H * 0.72 + i * 15;
-      for (let x = 0; x <= W; x += 4) {
-        const y = wy + Math.sin(x * 0.03 + Date.now() * 0.002 + i) * 3;
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
+      ctx.arc(moonScreenX, moonScreenY, 60, 0, Math.PI * 2);
+      ctx.fill();
+      // Mid glow
+      ctx.fillStyle = `rgba(255,255,230,${0.06 * moonA})`;
+      ctx.beginPath();
+      ctx.arc(moonScreenX, moonScreenY, 38, 0, Math.PI * 2);
+      ctx.fill();
+      // Moon body
+      ctx.fillStyle = `rgba(255,255,230,${0.14 * moonA})`;
+      ctx.beginPath();
+      ctx.arc(moonScreenX, moonScreenY, 22, 0, Math.PI * 2);
+      ctx.fill();
+      // Crescent shadow
+      ctx.fillStyle = `rgba(0,0,10,${0.08 * moonA})`;
+      ctx.beginPath();
+      ctx.arc(moonScreenX + 6, moonScreenY - 3, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // === 5. EARTH CURVE (visible when very high, altitude 800+) ===
+  if (d > 700) {
+    const earthBaseY = worldToScreen(0, d, 0.15);
+    if (earthBaseY < H + 500) {
+      const earthA = smoothstep(Math.min(1, (d - 700) / 400));
+      ctx.globalAlpha = earthA;
+      // Ocean
+      ctx.fillStyle = '#0D2847';
+      ctx.beginPath();
+      ctx.ellipse(W / 2, earthBaseY + 400, 550, 380, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Land mass
+      ctx.fillStyle = 'rgba(20,60,30,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(W / 2 - 50, earthBaseY + 375, 110, 70, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(25,70,35,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(W / 2 + 90, earthBaseY + 395, 70, 45, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Atmosphere rim
+      ctx.strokeStyle = `rgba(80,160,220,${0.25 * earthA})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, earthBaseY + 400, 555, 385, 0, Math.PI + 0.25, Math.PI * 2 - 0.25);
       ctx.stroke();
-    }
-  }
-}
-
-function drawBgStrato(d) {
-  const t = (d - 600) / 400;
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, lerpCol('#E3F2FD', '#1A237E', t));
-  g.addColorStop(0.5, lerpCol('#90CAF9', '#0D1B3E', t));
-  g.addColorStop(1, lerpCol('#42A5F5', '#0D0D2E', t));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  // Stars fading in
-  for (const s of stars) {
-    const twinkle = 0.4 + 0.6 * Math.sin(Date.now() * 0.003 + s.p);
-    ctx.fillStyle = `rgba(255,255,255,${twinkle * t * 0.8})`;
-    ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
-  }
-
-  // Clouds below fading out
-  if (t < 0.5) {
-    const cA = (1 - t * 2) * 0.3;
-    for (let i = 0; i < 5; i++) {
-      const cx = ((i * 140 + d * 0.3) % W);
-      const cy = H * 0.7 + i * 25;
-      drawCloud(cx, cy, cA);
+      ctx.globalAlpha = 1;
     }
   }
 
-  // Earth curve appearing
-  if (t > 0.6) {
-    const eA = (t - 0.6) * 2.5;
-    ctx.globalAlpha = Math.min(1, eA);
-    ctx.fillStyle = '#1565C0';
-    ctx.beginPath();
-    ctx.ellipse(W / 2, H + 250, 500, 280, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Land
-    ctx.fillStyle = '#2E7D32';
-    ctx.beginPath();
-    ctx.ellipse(W / 2 - 40, H + 230, 100, 60, 0.3, 0, Math.PI * 2);
-    ctx.fill();
-    // Atmosphere
-    ctx.strokeStyle = 'rgba(129,212,250,0.3)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(W / 2, H + 250, 505, 285, 0, Math.PI + 0.3, Math.PI * 2 - 0.3);
-    ctx.stroke();
+  // === 6. CLOUD LAYER (altitude 300-600m) ===
+  for (const c of cloudPositions) {
+    const cy = worldToScreen(c.alt, d, 0.8);
+    if (cy < -60 || cy > H + 60) continue;
+    const cx = c.x * W + Math.sin(Date.now() * 0.0003 + c.alt * 0.01) * 15;
+    // Clouds more opaque from below, thinner from above
+    const relAlt = d - c.alt;
+    let opacity;
+    if (relAlt < -100) {
+      // Well below cloud: see it above, getting brighter as approaching
+      opacity = smoothstep(Math.min(1, (c.alt - d - 100) > 0 ? 0 : 1 - Math.abs(relAlt + 100) / 300)) * 0.4;
+      opacity = Math.max(0.05, Math.min(0.5, 0.5 - Math.abs(relAlt + 100) / 600));
+    } else if (relAlt < 50) {
+      // Passing through
+      opacity = 0.5 - Math.abs(relAlt) / 100 * 0.3;
+    } else {
+      // Above cloud: see it below, fading
+      opacity = Math.max(0, 0.4 - (relAlt - 50) / 400);
+    }
+    if (opacity < 0.01) continue;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(c.scale, c.scale);
+    drawCloud(0, 0, opacity);
+    ctx.restore();
+  }
+
+  // === 7. CITY GROUND / HORIZON (altitude 0m) ===
+  const groundScreenY = worldToScreen(0, d, 1.0);
+  if (groundScreenY < H + 20 && d > 150 && d < 500) {
+    const groundA = smoothstep(Math.min(1, (d - 150) / 80)) * smoothstep(Math.max(0, 1 - (d - 350) / 150));
+    if (groundA > 0.01) {
+      ctx.globalAlpha = groundA * 0.6;
+      // Tiny city panorama at the ground line
+      ctx.fillStyle = '#1A1A28';
+      ctx.fillRect(0, groundScreenY, W, H - groundScreenY + 50);
+      // Mini buildings on the horizon
+      for (let i = 0; i < 20; i++) {
+        const bx = (i / 20) * W;
+        const bh = 5 + Math.sin(i * 1.7) * 4 + Math.cos(i * 0.9) * 3;
+        ctx.fillStyle = i % 3 === 0 ? '#2A2A3A' : '#222235';
+        ctx.fillRect(bx, groundScreenY - bh, W / 22, bh);
+        // Tiny window lights
+        if (i % 2 === 0) {
+          ctx.fillStyle = 'rgba(240,240,192,0.6)';
+          ctx.fillRect(bx + 2, groundScreenY - bh + 2, 1, 1);
+          ctx.fillRect(bx + 5, groundScreenY - bh + 4, 1, 1);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // === 8. BUILDINGS (altitude 0-250m) ===
+  // Near buildings parallax: 2.5, far buildings: 1.5
+  // Buildings are visible when camera is between ~80 and ~350
+  // (office obscures them below ~70, they scroll off below ~350)
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
+    const bAltTop = b.h * 1.2; // building top altitude (proportional to height)
+    const bAltBot = 0; // base at ground level
+    const isNear = i < 10;
+    const parallax = isNear ? 2.5 : 1.5;
+    const topY = worldToScreen(bAltTop, d, parallax);
+    const botY = worldToScreen(bAltBot, d, parallax);
+
+    // Skip if completely off-screen
+    if (topY > H + 50 || botY < -50) continue;
+
+    // Office interior obscures buildings when inside office
+    // Fade buildings in as we break through ceiling (d 70-100)
+    let bAlpha = 1;
+    if (d < 70) continue; // still inside, office walls block view
+    if (d < 100) bAlpha = smoothstep((d - 70) / 30);
+
+    // Fade out when far above
+    if (d > 250) bAlpha *= Math.max(0, 1 - (d - 250) / 100);
+    if (bAlpha < 0.01) continue;
+
+    ctx.globalAlpha = bAlpha;
+
+    // Position buildings on left/right sides of screen
+    const side = i % 2 === 0 ? -1 : 1;
+    const bx = side > 0
+      ? W * 0.55 + (i % 10) * 18 + b.x * 40
+      : -(i % 10) * 18 - b.x * 40 - b.w + W * 0.45;
+    const drawH = Math.max(0, botY - topY);
+    const drawW = b.w * 0.9;
+
+    ctx.fillStyle = b.dark ? '#25253A' : '#30304A';
+    ctx.fillRect(bx, topY, drawW, drawH);
+
+    // Roof accent
+    ctx.fillStyle = '#1A1A2E';
+    ctx.fillRect(bx, topY, drawW, 3);
+
+    // Window lights (nighttime)
+    let wi = 0;
+    for (let wy = topY + 6; wy < botY - 5; wy += 11) {
+      for (let wx = bx + 4; wx < bx + drawW - 5; wx += 9) {
+        if (wi < b.winOn.length) {
+          if (b.winOn[wi]) {
+            // Warm window light with slight color variation
+            const warmR = 230 + Math.floor(Math.sin(wi * 0.7) * 20);
+            const warmG = 220 + Math.floor(Math.sin(wi * 1.1) * 20);
+            ctx.fillStyle = `rgba(${warmR},${warmG},160,0.85)`;
+          } else {
+            ctx.fillStyle = 'rgba(15,15,25,0.7)';
+          }
+          ctx.fillRect(wx, wy, 5, 7);
+          wi++;
+        }
+      }
+    }
     ctx.globalAlpha = 1;
   }
-}
 
-function drawBgSpace(d) {
-  ctx.fillStyle = '#0D0D0D';
-  ctx.fillRect(0, 0, W, H);
+  // === 9. VILLAGE / GROUND (altitude 0-80m) ===
+  // Visible when camera is low — landing zone when falling
+  if (d < 120) {
+    const alpha = d < 80 ? 1 : Math.max(0, 1 - (d - 80) / 40);
+    if (alpha > 0.01) {
+      ctx.globalAlpha = alpha;
 
-  // Stars
-  const sd = d * 0.15;
-  for (const s of stars) {
-    const twinkle = 0.3 + 0.7 * Math.sin(Date.now() * 0.003 + s.p);
-    const sy = ((s.y * H - sd) % H + H) % H;
-    ctx.fillStyle = `rgba(255,${200 + Math.floor(s.p * 20)},${150 + Math.floor(s.p * 30)},${twinkle})`;
-    ctx.fillRect(s.x * W, sy, s.r, s.r);
+      // Ground plane
+      const groundY = worldToScreen(0, d, 2.0);
+      if (groundY < H + 50) {
+        ctx.fillStyle = '#2D4A2D';
+        ctx.fillRect(0, groundY, W, H - groundY + 200);
+        ctx.fillStyle = '#3A5A3A';
+        ctx.fillRect(0, groundY, W, 3);
+      }
+
+      // Cute houses (bigger, colorful, pixel-art style)
+      const houseColors = ['#C75B3A', '#3A7CC7', '#C7A83A', '#7B3AC7', '#3AC78A', '#C73A6E'];
+      const roofColors = ['#8B3A22', '#2A5A8B', '#8B7A22', '#5A2A8B', '#2A8B5A', '#8B2A4E'];
+      for (let i = 0; i < 8; i++) {
+        const hAlt = 8 + (i % 3) * 5;
+        const hy = worldToScreen(hAlt, d, 2.0);
+        if (hy < -80 || hy > H + 80) continue;
+
+        const side = i < 4 ? -1 : 1;
+        const hx = side > 0
+          ? W * 0.58 + (i % 4) * 30
+          : W * 0.02 + (i % 4) * 28;
+        const hw = 32 + (i % 3) * 8;
+        const hh = 28 + (i % 4) * 6;
+        const ci = i % houseColors.length;
+
+        // House body
+        ctx.fillStyle = houseColors[ci];
+        ctx.fillRect(hx, hy - hh, hw, hh);
+        // Roof (stepped pixel triangle)
+        ctx.fillStyle = roofColors[ci];
+        ctx.fillRect(hx - 3, hy - hh - 4, hw + 6, 5);
+        ctx.fillRect(hx + 3, hy - hh - 8, hw - 6, 5);
+        ctx.fillRect(hx + 7, hy - hh - 11, hw - 14, 4);
+        ctx.fillRect(hx + 11, hy - hh - 14, hw - 22, 4);
+        // Door
+        ctx.fillStyle = '#5A3A20';
+        ctx.fillRect(hx + hw / 2 - 4, hy - 14, 8, 14);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(hx + hw / 2 + 2, hy - 8, 2, 2);
+        // Windows (warm light)
+        ctx.fillStyle = 'rgba(255,220,120,0.85)';
+        ctx.fillRect(hx + 4, hy - hh + 6, 7, 7);
+        ctx.fillRect(hx + hw - 11, hy - hh + 6, 7, 7);
+        // Window frame
+        ctx.fillStyle = houseColors[ci];
+        ctx.fillRect(hx + 7, hy - hh + 6, 1, 7);
+        ctx.fillRect(hx + 4, hy - hh + 9, 7, 1);
+        ctx.fillRect(hx + hw - 8, hy - hh + 6, 1, 7);
+        ctx.fillRect(hx + hw - 11, hy - hh + 9, 7, 1);
+        // Chimney
+        if (i % 3 === 0) {
+          ctx.fillStyle = '#6A4A3A';
+          ctx.fillRect(hx + hw - 10, hy - hh - 18, 6, 8);
+          ctx.fillStyle = 'rgba(200,200,200,0.3)';
+          ctx.fillRect(hx + hw - 9, hy - hh - 22, 2, 4);
+        }
+      }
+
+      // Trees
+      const treePositions = [0.02, 0.15, 0.28, 0.72, 0.85, 0.95];
+      for (let i = 0; i < treePositions.length; i++) {
+        const tx = treePositions[i] * W;
+        const tAlt = 3 + (i % 2) * 2;
+        const ty = worldToScreen(tAlt, d, 2.0);
+        if (ty < -40 || ty > H + 40) continue;
+        // Trunk
+        ctx.fillStyle = '#5A3A20';
+        ctx.fillRect(tx, ty - 10, 3, 10);
+        // Leaves (round-ish)
+        ctx.fillStyle = i % 2 === 0 ? '#2D6A2D' : '#3D7A3D';
+        ctx.fillRect(tx - 5, ty - 18, 13, 6);
+        ctx.fillRect(tx - 3, ty - 22, 9, 5);
+        ctx.fillRect(tx - 1, ty - 24, 5, 3);
+      }
+
+      // Street lamp
+      if (groundY < H) {
+        ctx.fillStyle = '#555';
+        ctx.fillRect(W * 0.33, groundY - 28, 2, 28);
+        ctx.fillRect(W * 0.32, groundY - 30, 6, 3);
+        ctx.fillStyle = 'rgba(255,200,100,0.6)';
+        ctx.fillRect(W * 0.325, groundY - 29, 4, 2);
+        // Lamp glow
+        ctx.fillStyle = 'rgba(255,200,100,0.04)';
+        ctx.beginPath(); ctx.arc(W * 0.34, groundY - 25, 35, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+    }
   }
 
-  // Nebula
-  ctx.fillStyle = 'rgba(156,39,176,0.04)';
-  ctx.beginPath();
-  ctx.ellipse(W * 0.3, ((H * 0.4 - sd * 0.3) % H + H) % H, 100, 60, 0.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Earth
-  const earthY = H + 120 - Math.min((d - 1000) / 500 * 60, 60);
-  ctx.fillStyle = '#1565C0';
-  ctx.beginPath();
-  ctx.ellipse(W / 2, earthY + 350, 450, 360, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(46,125,50,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(W / 2 - 60, earthY + 320, 140, 90, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(76,175,80,0.2)';
-  ctx.beginPath();
-  ctx.ellipse(W / 2 + 80, earthY + 340, 80, 50, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-  // Atmosphere glow
-  ctx.strokeStyle = 'rgba(129,212,250,0.25)';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.ellipse(W / 2, earthY + 350, 455, 365, 0, Math.PI + 0.2, Math.PI * 2 - 0.2);
-  ctx.stroke();
-
-  // ISS
+  // === 10. ISS (altitude 1500m+) ===
   if (d > 1200) {
-    const ix = W / 2 + Math.sin(Date.now() * 0.0004) * 120;
-    const iy = H * 0.25 + Math.cos(Date.now() * 0.0003) * 40;
-    ctx.fillStyle = '#bbb';
-    ctx.fillRect(ix - 16, iy - 2, 32, 4);
-    ctx.fillRect(ix - 2, iy - 10, 4, 20);
-    ctx.fillStyle = '#4FC3F7';
-    ctx.fillRect(ix - 16, iy - 8, 12, 4);
-    ctx.fillRect(ix + 4, iy - 8, 12, 4);
-    ctx.fillRect(ix - 16, iy + 4, 12, 4);
-    ctx.fillRect(ix + 4, iy + 4, 12, 4);
+    const issY = worldToScreen(1800, d, 0.1);
+    const issX = W / 2 + Math.sin(Date.now() * 0.0004) * 120;
+    if (issY > -30 && issY < H + 30) {
+      const issA = smoothstep(Math.min(1, (d - 1200) / 200));
+      ctx.globalAlpha = issA;
+      ctx.fillStyle = '#bbb';
+      ctx.fillRect(issX - 16, issY - 2, 32, 4);
+      ctx.fillRect(issX - 2, issY - 10, 4, 20);
+      ctx.fillStyle = '#4FC3F7';
+      ctx.fillRect(issX - 16, issY - 8, 12, 4);
+      ctx.fillRect(issX + 4, issY - 8, 12, 4);
+      ctx.fillRect(issX - 16, issY + 4, 12, 4);
+      ctx.fillRect(issX + 4, issY + 4, 12, 4);
+      ctx.globalAlpha = 1;
+    }
   }
 
-  // Satellites
+  // === 11. SATELLITES (altitude 1300m+) ===
   if (d > 1100) {
+    const satA = smoothstep(Math.min(1, (d - 1100) / 200));
     const sx = ((Date.now() * 0.02 + d) % (W + 40)) - 20;
-    ctx.fillStyle = '#999';
-    ctx.fillRect(sx, H * 0.15, 4, 4);
-    ctx.fillStyle = '#4FC3F7';
-    ctx.fillRect(sx - 6, H * 0.15 + 1, 5, 2);
-    ctx.fillRect(sx + 4, H * 0.15 + 1, 5, 2);
+    const satY = worldToScreen(1500, d, 0.08);
+    if (satY > -10 && satY < H + 10) {
+      ctx.globalAlpha = satA;
+      ctx.fillStyle = '#999';
+      ctx.fillRect(sx, satY, 4, 4);
+      ctx.fillStyle = '#4FC3F7';
+      ctx.fillRect(sx - 6, satY + 1, 5, 2);
+      ctx.fillRect(sx + 4, satY + 1, 5, 2);
+      ctx.globalAlpha = 1;
+    }
   }
 }
 
@@ -1132,66 +1299,55 @@ function drawObs(o) {
 // Drawing: Landing Scene
 // ═══════════════════════════════════════
 function drawLanding(dim = 0) {
-  // Sky
+  const now = Date.now();
+  const bY = H * 0.58;
+
+  // Night sky
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1A1A2E');
-  g.addColorStop(0.5, '#252540');
-  g.addColorStop(1, '#3A3A4A');
+  g.addColorStop(0, '#0A0E1A');
+  g.addColorStop(0.4, '#121828');
+  g.addColorStop(0.7, '#1A2030');
+  g.addColorStop(1, '#252535');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
 
   // Stars
   for (const s of stars) {
-    if (s.y > 0.55) continue;
-    const tw = 0.3 + 0.7 * Math.sin(Date.now() * 0.002 + s.p);
-    ctx.fillStyle = `rgba(255,255,255,${tw * 0.4})`;
+    if (s.y > 0.5) continue;
+    const tw = 0.3 + 0.7 * Math.sin(now * 0.002 + s.p);
+    ctx.fillStyle = `rgba(255,255,255,${tw * 0.5})`;
     ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
   }
 
   // Moon
-  ctx.fillStyle = 'rgba(255,255,230,0.12)';
-  ctx.beginPath();
-  ctx.arc(W * 0.8, H * 0.12, 25, 0, Math.PI * 2);
-  ctx.fill();
   ctx.fillStyle = 'rgba(255,255,230,0.04)';
-  ctx.beginPath();
-  ctx.arc(W * 0.8, H * 0.12, 40, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(W * 0.82, H * 0.1, 45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,230,0.12)';
+  ctx.beginPath(); ctx.arc(W * 0.82, H * 0.1, 22, 0, Math.PI * 2); ctx.fill();
 
-  // Buildings
-  const bY = H * 0.55;
-  for (let i = 0; i < 9; i++) {
-    const b = buildings[i];
+  // City skyline
+  for (let i = 0; i < 12; i++) {
+    const b = buildings[i % buildings.length];
     const bw = b.w * 1.1;
-    const bh = b.h * 0.8;
-    const bx = i * (W / 8) - 15;
-    ctx.fillStyle = b.dark ? '#2D2D40' : '#383850';
+    const bh = b.h * 0.85;
+    const bx = i * (W / 10) - 10;
+    ctx.fillStyle = b.dark ? '#1A1A2E' : '#222240';
     ctx.fillRect(bx, bY - bh, bw, bh + H);
-
-    // Windows
     let wi = 0;
-    for (let wy = bY - bh + 6; wy < bY; wy += 12) {
-      for (let wx = bx + 4; wx < bx + bw - 5; wx += 10) {
+    for (let wy = bY - bh + 6; wy < bY; wy += 11) {
+      for (let wx = bx + 4; wx < bx + bw - 5; wx += 9) {
         const on = wi < b.winOn.length ? b.winOn[wi] : false;
-        ctx.fillStyle = on ? '#F0F0C0' : '#1E1E30';
-        ctx.fillRect(wx, wy, 6, 8);
+        ctx.fillStyle = on ? `rgba(${230 + (wi % 3) * 8},${210 + (wi % 5) * 6},140,0.85)` : '#0E0E1E';
+        ctx.fillRect(wx, wy, 5, 7);
         wi++;
       }
     }
   }
 
-  // Ground
-  ctx.fillStyle = '#252530';
-  ctx.fillRect(0, bY, W, H - bY);
-  // Sidewalk
-  ctx.fillStyle = '#333340';
-  ctx.fillRect(0, bY, W, 6);
-
-  // Character with idle animation (head bob + sigh)
+  // Character idle (standing at building base line)
   const bobY = Math.sin(idleT * 1.5) * 2;
   drawChar(W / 2, bY - 14 + bobY, 3, 'idle');
 
-  // Dimming overlay
   if (dim > 0) {
     ctx.fillStyle = `rgba(0,0,0,${dim})`;
     ctx.fillRect(0, 0, W, H);
@@ -1211,10 +1367,27 @@ function update(dt) {
   }
 
   // Shake decay
-  shakeAmt *= 0.88;
+  shakeAmt *= 0.85;
   if (shakeAmt < 0.2) shakeAmt = 0;
   shakeX = (Math.random() - 0.5) * shakeAmt * 2;
   shakeY = (Math.random() - 0.5) * shakeAmt * 2;
+
+  // Camera inertia — lags behind sudden velocity changes
+  if (phase === PH.PLAY || phase === PH.FALL) {
+    const accel = vel - prevVel;
+    camTargY += accel * 3;
+    camTargX += (Math.random() - 0.5) * Math.abs(accel) * 1.5;
+    camTargY *= 0.85;
+    camTargX *= 0.85;
+    camOffX += (camTargX - camOffX) * 0.12;
+    camOffY += (camTargY - camOffY) * 0.12;
+    camRotTarg = accel * 0.015 + (Math.random() - 0.5) * normVol * 0.0003;
+    camRotTarg *= 0.9;
+    camRot += (camRotTarg - camRot) * 0.1;
+  } else {
+    camOffX *= 0.9; camOffY *= 0.9; camRot *= 0.9;
+  }
+  prevVel = vel;
 
   // Flash decay
   flashA = Math.max(0, flashA - dt * 5);
@@ -1282,7 +1455,8 @@ function update(dt) {
       sonicActive = true;
       sonicT = 0;
       SFX.boom();
-      shakeAmt = 15;
+      shakeAmt = 20;
+      camTargY = -30;
       try { navigator.vibrate([50, 30, 50, 30, 100]); } catch (e) {}
     }
     if (normVol < 75) sonicActive = false;
@@ -1367,7 +1541,10 @@ function update(dt) {
           vel *= 0.65;
           SFX.hit();
           flashCol = '#FF1744'; flashA = 0.35;
-          shakeAmt = 8;
+          shakeAmt = 18;
+          camTargY = 25;
+          camTargX = (Math.random() - 0.5) * 30;
+          camRotTarg = (Math.random() - 0.5) * 0.06;
           charVelAngle = (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5);
           charHitTimer = 0.6;
           try { navigator.vibrate(100); } catch (e) {}
@@ -1432,25 +1609,58 @@ function update(dt) {
     if (gameT >= MAX_TIME || (vel < -3 && gameT > 1)) {
       phase = PH.FALL;
       fallT = 0;
+      $hud.classList.add('hidden');
+      obs = [];
     }
   }
 
   // ─── FALLING ───
   if (phase === PH.FALL) {
     fallT += dt;
-    vel -= dt * 6;
-    dist += vel * dt * 12;
-    if (dist < 0) dist = 0;
-    $distNum.textContent = Math.round(dist) + 'm';
 
-    // Tumble during fall
-    charAngle += dt * 4;
-
-    if (fallT > 1.8 || vel < -8) {
-      bounceActive = true;
-      bounceTimer = 0;
-      beginResult();
+    // Phase 1 (0~0.8s): Hang in air, momentum dies
+    if (fallT < 0.8) {
+      vel *= 0.92;
+      charAngle += dt * 2;
     }
+    // Phase 2 (0.8~1.5s): Snap dist to 0 rapidly (ground rushing up)
+    else if (dist > 5) {
+      dist *= 0.88;
+      vel = -20;
+      charAngle += dt * (8 + (1500 - dist) * 0.01);
+      shakeAmt = Math.max(shakeAmt, 6);
+      camTargY += dt * 15;
+    }
+    // Phase 3: Impact on ground (once only)
+    else if (dist <= 5 && !fallImpacted) {
+      fallImpacted = true;
+      dist = 0;
+      vel = 0;
+      shakeAmt = 30;
+      camTargY = 40;
+      camRotTarg = (Math.random() - 0.5) * 0.08;
+      charVelAngle = (Math.random() - 0.5) * 3;
+      flashCol = '#FF6B35'; flashA = 0.5;
+      SFX.land();
+      try { navigator.vibrate([100, 30, 200]); } catch (e) {}
+      const cx = W / 2, cy = H * 0.42;
+      addParts(cx, cy + 30, 20, '#FF6B35', 8, 0.8);
+      addParts(cx, cy + 30, 10, '#FFF', 5, 0.5);
+      noise(0.3, 0.12);
+      fallImpactT = 0;
+    }
+
+    // After impact, gradually settle charAngle toward 0
+    if (fallImpacted) {
+      charAngle *= 0.85;
+      if (Math.abs(charAngle) < 0.05) charAngle = 0;
+      fallImpactT = (fallImpactT || 0) + dt;
+      if (fallImpactT > 1.2) {
+        beginResult();
+      }
+    }
+
+    $distNum.textContent = Math.round(dist) + 'm';
   }
 
   // ─── Particles ───
@@ -1477,8 +1687,10 @@ function update(dt) {
 // ═══════════════════════════════════════
 function draw() {
   ctx.save();
-  ctx.translate(shakeX, shakeY);
-  ctx.clearRect(-20, -20, W + 40, H + 40);
+  ctx.translate(W / 2 + shakeX + camOffX, H / 2 + shakeY + camOffY);
+  ctx.rotate(camRot);
+  ctx.translate(-W / 2, -H / 2);
+  ctx.clearRect(-60, -60, W + 120, H + 120);
 
   if (phase === PH.LAND || phase === PH.CHALLENGE) {
     drawLanding();
@@ -1518,9 +1730,9 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
-  // Flash overlay
+  // Flash overlay (subtle screen tint only)
   if (flashA > 0) {
-    ctx.globalAlpha = flashA;
+    ctx.globalAlpha = flashA * 0.15;
     ctx.fillStyle = flashCol;
     ctx.fillRect(-20, -20, W + 40, H + 40);
     ctx.globalAlpha = 1;
