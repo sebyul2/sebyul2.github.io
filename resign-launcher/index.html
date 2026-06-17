@@ -193,7 +193,10 @@ const SFX = {
 let ghost = null;
 try {
   const p = new URLSearchParams(location.search);
-  if (p.has('g')) ghost = JSON.parse(decodeURIComponent(escape(atob(p.get('g')))));
+  if (p.has('g')) {
+    const raw = p.get('g').replace(/[^A-Za-z0-9+/=]/g, '');
+    ghost = JSON.parse(decodeURIComponent(escape(atob(raw))));
+  }
 } catch (e) { ghost = null; }
 
 // ═══════════════════════════════════════
@@ -463,7 +466,7 @@ function beginResult() {
 function shareText() {
   const ti = getTitle(dist);
   const url = shareUrl();
-  return `🏢 퇴근 발사기에서 ${Math.round(dist)}m 날아감\n🏆 칭호: ${ti.t} (${ti.s})\n📢 최대 비명: ${Math.round(maxVol)}dB\n💥 읽씹한 업무: ${destroyTexts.length > 0 ? destroyTexts.slice(0, 4).join(', ') : '없음'}\n\n너도 퇴근해봐 👉 ${url}\n내 기록 이기면 인정 ㅋㅋ`;
+  return `🏢 퇴근 발사기에서 ${Math.round(dist)}m 날아감\n🏆 칭호: ${ti.t} (${ti.s})\n📢 최대 비명: ${Math.round(maxVol)}dB\n💥 읽씹한 업무: ${destroyTexts.length > 0 ? destroyTexts.slice(0, 4).join(', ') : '없음'}\n\n너도 퇴근해봐 👇\n${url}`;
 }
 
 function shareUrl() {
