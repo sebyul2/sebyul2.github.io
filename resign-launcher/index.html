@@ -1344,9 +1344,15 @@ function drawLanding(dim = 0) {
     }
   }
 
-  // Character idle (standing at building base line)
+  // Ground line at building base
+  ctx.fillStyle = '#1A1A28';
+  ctx.fillRect(0, bY, W, H - bY);
+  ctx.fillStyle = '#2A2A38';
+  ctx.fillRect(0, bY, W, 3);
+
+  // Character idle (feet on ground)
   const bobY = Math.sin(idleT * 1.5) * 2;
-  drawChar(W / 2, bY - 14 + bobY, 3, 'idle');
+  drawChar(W / 2, bY - 34 + bobY, 3, 'idle');
 
   if (dim > 0) {
     ctx.fillStyle = `rgba(0,0,0,${dim})`;
@@ -1513,7 +1519,7 @@ function update(dt) {
       spawnObs();
     }
 
-    const cx = W / 2, cy = H * 0.42;
+    const cx = W / 2, cy = Math.min(worldToScreen(0, dist, 2.0) - 36, H * 0.42);
     for (const o of obs) {
       if (!o.alive) continue;
       o.time += dt;
@@ -1643,7 +1649,7 @@ function update(dt) {
       flashCol = '#FF6B35'; flashA = 0.5;
       SFX.land();
       try { navigator.vibrate([100, 30, 200]); } catch (e) {}
-      const cx = W / 2, cy = H * 0.42;
+      const cx = W / 2, cy = Math.min(worldToScreen(0, dist, 2.0) - 36, H * 0.42);
       addParts(cx, cy + 30, 20, '#FF6B35', 8, 0.8);
       addParts(cx, cy + 30, 10, '#FFF', 5, 0.5);
       noise(0.3, 0.12);
@@ -1747,7 +1753,7 @@ function drawGameScene() {
   // Draw obstacles
   for (const o of obs) drawObs(o);
 
-  const cx = W / 2, cy = H * 0.42;
+  const cx = W / 2, cy = Math.min(worldToScreen(0, dist, 2.0) - 36, H * 0.42);
 
   // Trails (afterimage)
   for (let i = 0; i < trails.length; i++) {
