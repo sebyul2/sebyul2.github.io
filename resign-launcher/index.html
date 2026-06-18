@@ -210,7 +210,7 @@ let name = '';
 let micStream = null, analyser = null, freqData = null;
 
 // Game vars
-let vol = 0, normVol = 0, thrust = 0, vel = 0, dist = 0, maxVol = 0;
+let vol = 0, normVol = 0, thrust = 0, vel = 0, dist = 0, maxVol = 0, peakDist = 0;
 let silentT = 0, gameT = 0;
 const MAX_TIME = 10;
 let obs = [], parts = [], floats = [];
@@ -430,7 +430,7 @@ function beginGame() {
   phase = PH.PLAY;
   $cd.classList.add('hidden');
   $hud.classList.remove('hidden');
-  vel = 0; dist = 0; maxVol = 0; silentT = 0; gameT = 0;
+  vel = 0; dist = 0; maxVol = 0; peakDist = 0; silentT = 0; gameT = 0;
   obs = []; parts = []; floats = [];
   obsTimer = 0; destroyCount = 0; destroyTexts = [];
   volHist = []; hitIdxs = []; trails = [];
@@ -457,8 +457,8 @@ function beginResult() {
   $float.style.opacity = '0';
   stopMic();
 
-  const d = Math.round(dist);
-  const ti = getTitle(dist);
+  const d = Math.round(peakDist);
+  const ti = getTitle(peakDist);
 
   $rDist.textContent = d + 'm';
   $rTitle.textContent = '🏆 ' + ti.t;
@@ -506,9 +506,9 @@ function beginResult() {
 // Share
 // ═══════════════════════════════════════
 function shareText() {
-  const ti = getTitle(dist);
+  const ti = getTitle(peakDist);
   const url = shareUrl();
-  return `🏢 퇴근 발사기에서 ${Math.round(dist)}m 날아감\n🏆 칭호: ${ti.t} (${ti.s})\n📢 최대 비명: ${Math.round(maxVol)}dB\n💥 읽씹한 업무: ${destroyTexts.length > 0 ? destroyTexts.slice(0, 4).join(', ') : '없음'}\n\n너도 퇴근해봐 👇\n${url}`;
+  return `🏢 퇴근 발사기에서 ${Math.round(peakDist)}m 날아감\n🏆 칭호: ${ti.t} (${ti.s})\n📢 최대 비명: ${Math.round(maxVol)}dB\n💥 읽씹한 업무: ${destroyTexts.length > 0 ? destroyTexts.slice(0, 4).join(', ') : '없음'}\n\n너도 퇴근해봐 👇\n${url}`;
 }
 
 function shareUrl() {
@@ -517,7 +517,7 @@ function shareUrl() {
   for (let i = 0; i < volHist.length && samples.length < 50; i += step) {
     samples.push(Math.round(volHist[i]));
   }
-  const data = { n: name, d: Math.round(dist), t: getTitle(dist).t, v: samples, o: destroyCount, ts: Date.now() };
+  const data = { n: name, d: Math.round(peakDist), t: getTitle(peakDist).t, v: samples, o: destroyCount, ts: Date.now() };
   return location.origin + location.pathname + '?g=' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 
@@ -1438,6 +1438,7 @@ function update(dt) {
     vol = readVol();
     normVol = Math.min(vol * 1.6, 150);
     if (normVol > maxVol) maxVol = normVol;
+    if (dist > peakDist) peakDist = dist;
 
     volHist.push(normVol);
 
@@ -1448,10 +1449,13 @@ function update(dt) {
     else if (normVol < 100) thrust = 7 + ((normVol - 80) / 20) * 3;
     else thrust = 10 + ((normVol - 100) / 50) * 5;
 
-    // Silence => fall
+    // Silence => rapid deceleration and fall
     if (normVol < 15) {
       silentT += dt;
-      if (silentT > 0.5) thrust = -3;
+      if (silentT > 0.3) {
+        thrust = -5;
+        vel *= 0.96;
+      }
     } else {
       silentT = 0;
     }
